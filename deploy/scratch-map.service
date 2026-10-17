@@ -8,6 +8,11 @@ Type=simple
 WorkingDirectory=%h/projects/scratch-map
 Environment=PYTHONUNBUFFERED=1
 ExecStart=%h/projects/scratch-map/venv/bin/gunicorn --bind 0.0.0.0:5020 --workers 1 --threads 4 --timeout 180 --control-socket %t/scratch-map.ctl app:app
+# Só HTTPS, com o certificado do Tailscale (para instalar o app no Android; veja
+# o README, "No celular"): acrescente ao ExecStart
+#   --certfile %h/.local/share/scratch-map/tls/cert.pem --keyfile %h/.local/share/scratch-map/tls/key.pem
+# e ligue o timer scratch-map-cert, que renova o certificado e recarrega daqui.
+ExecReload=/bin/kill -HUP $MAINPID
 Restart=always
 RestartSec=5
 # teto de memória: um upload grande não derruba uma máquina com pouca RAM

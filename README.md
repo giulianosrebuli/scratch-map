@@ -456,17 +456,30 @@ conexão", mostrada quando o computador não responde).
 - **Android** (Chrome): menu → "Instalar app".
 
 Para instalar de verdade (e ter o service worker), o Chrome exige **HTTPS**;
-em `http://` vira só um atalho. Com Tailscale, dá para ter HTTPS com
-certificado válido só dentro da sua tailnet, sem abrir nada para a internet:
+em `http://` vira só um atalho (o Safari aceita HTTP). Com Tailscale, o
+gunicorn serve HTTPS direto, com o certificado válido que o Tailscale emite
+para o nome da máquina na tailnet:
 
 ```bash
-tailscale serve --bg --https=8443 http://127.0.0.1:5020
-# https://<máquina>.<tailnet>.ts.net:8443 (desligar: tailscale serve --https=8443 off)
+deploy/renew-cert.sh        # grava ~/.local/share/scratch-map/tls/{cert,key}.pem
 ```
 
-Não use o Funnel (`tailscale funnel`): ele publica na internet, e o app não
-tem senha. Precisa do MagicDNS e dos certificados HTTPS ligados no painel do
-Tailscale.
+No unit do systemd, acrescente ao `ExecStart`
+`--certfile %h/.local/share/scratch-map/tls/cert.pem --keyfile %h/.local/share/scratch-map/tls/key.pem`
+(veja o comentário em `deploy/scratch-map.service`) e ligue a renovação
+automática (o certificado dura 90 dias):
+
+```bash
+ln -s ~/projects/scratch-map/deploy/scratch-map-cert.{service,timer} ~/.config/systemd/user/
+systemctl --user daemon-reload && systemctl --user enable --now scratch-map-cert.timer
+```
+
+O endereço passa a ser `https://<máquina>.<tailnet>.ts.net:5020`, só com o
+Tailscale ligado (o certificado não vale para o IP da rede local, e
+`http://` deixa de responder). Precisa do MagicDNS e dos certificados HTTPS
+ligados no painel do Tailscale, e do seu usuário como operador
+(`sudo tailscale set --operator=$USER`). Não publique com o Funnel: o app não
+tem senha.
 
 ### Outra instância
 

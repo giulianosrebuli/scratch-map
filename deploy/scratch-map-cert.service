@@ -1,0 +1,7 @@
+[Unit]
+Description=Scratch Map - renova o certificado HTTPS do Tailscale
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/projects/scratch-map/deploy/renew-cert.sh
