@@ -6,7 +6,8 @@ Usado na troca do Natural Earth (ids adm1_code, ex. BRA-627) pelo Overture
 novo o de maior sobreposição com o polígono antigo. Também apaga os contornos
 de cidade antigos (Nominatim), que o app recalcula a partir do Overture.
 
-Faz backup de data/scratch.db antes. Mostra o de-para para conferir.
+Faz backup do banco antes. Mostra o de-para para conferir. Um perfil por vez:
+o 1 por padrão, outro com SCRATCH_DB=data/profiles/<id>/scratch.db.
 
 Uso:  venv/bin/python scripts/migrate_ids.py OLD_COUNTRIES.geojson OLD_STATES.geojson [--apply]
 """
@@ -27,7 +28,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from build_geodata import GEO_DB, LOOKUP_TOL, WORK, features  # noqa: E402
 
 DATA = Path(os.environ.get("SCRATCH_DATA", ROOT / "data"))
-DB = DATA / "scratch.db"
+DB = Path(os.environ.get("SCRATCH_DB", DATA / "profiles" / "1" / "scratch.db"))
 
 
 def load_new(layer):

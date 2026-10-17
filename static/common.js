@@ -27,8 +27,16 @@
     return `${d} ${MONTHS[+m - 1]} ${y}`;
   };
   const store = {
-    get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
-    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* sem storage, tudo bem */ } },
+    // por perfil (o aparelho pode ser de mais de uma pessoa); o perfil 1 ainda
+    // lê as chaves de antes dos perfis
+    key: (k) => `p${window.PROFILE}:${k}`,
+    get(k, d) {
+      try {
+        const v = localStorage.getItem(this.key(k)) ?? (window.PROFILE === '1' ? localStorage.getItem(k) : null);
+        return JSON.parse(v) ?? d;
+      } catch { return d; }
+    },
+    set(k, v) { try { localStorage.setItem(this.key(k), JSON.stringify(v)); } catch { /* sem storage, tudo bem */ } },
   };
   function el(html) {
     const t = document.createElement('template');

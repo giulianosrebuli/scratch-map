@@ -60,9 +60,20 @@ systemd de usuário. Acesso pela rede de casa ou por VPN (ex.: Tailscale).
   estado/país, a gaveta lista também as cidades e aeroportos perto de onde
   você tocou, já com a bandeira para marcar (é por aí que se marca aeroporto,
   estado ou país direto).
+- **Perfis** (`/perfis`): cada pessoa da casa com suas visitas, fotos e
+  configurações, sem senha (confia em quem está na rede, como o resto do
+  app). Com um perfil só, nada muda: ele é usado direto. Com mais de um, cada
+  aparelho pergunta "quem está usando?" uma vez e lembra (cookie); trocar fica
+  no cabeçalho do Perfil. "Adicionar perfil" passa pelo assistente (idioma ou
+  restaurar um backup, nome e foto, vista inicial, lista de cidades), sem a
+  parte dos dados do mapa, que são da casa toda. Apagar fica em
+  Configurações (não com o único perfil) e só move a pasta para
+  `data/profiles-removed/`. O que o navegador guarda (vista "onde parei",
+  camadas, ordem do mural) também é por perfil.
 - **Perfil** (`/perfil`; o antigo `/stats` redireciona): no topo, nome e foto
   de perfil, editáveis ali mesmo (tocar na foto troca; a foto vira um
-  quadrado de 512 px em `data/profile.jpg`). Abaixo, o álbum de bandeiras.
+  quadrado de 512 px em `profile.jpg`, na pasta do perfil). Ao lado, os
+  botões de trocar de perfil e de configurações. Abaixo, o álbum de bandeiras.
   Álbum: Totais no topo; países como
   círculos com a bandeira (visitados em cor, os outros bem apagados; a lista
   dos não visitados começa dobrada, com "Ver mais"). Tocar
@@ -175,6 +186,7 @@ scratch-map/
 ├── flags.py                  # bandeiras de estado (Wikidata, em segundo plano)
 ├── geoshapes.py              # recorte pelo litoral e busca da área de cidade (Overture)
 ├── installer.py              # primeira execução: assistente e montagem dos dados do mapa
+├── profiles.py               # perfis da casa: uma pasta de dados por pessoa
 ├── i18n.py, i18n/en.json     # tradução (o texto em português é a chave)
 ├── Dockerfile, docker-compose.yml
 ├── setup.sh                  # prepara uma instância do zero (venv + geodata)
@@ -184,6 +196,7 @@ scratch-map/
 ├── templates/index.html      # mapa
 ├── templates/mural.html      # mural de fotos
 ├── templates/perfil.html     # perfil (nome, foto) + álbum de bandeiras
+├── templates/perfis.html     # "quem está usando?" (escolher e adicionar perfil)
 ├── templates/config.html     # configurações
 ├── templates/setup.html      # assistente de primeira execução
 ├── templates/_navbar.html    # barra de menu na base, comum às telas
@@ -195,7 +208,8 @@ scratch-map/
 │   ├── stats.js              # álbum de bandeiras (no perfil)
 │   ├── profile.js            # nome e foto do perfil
 │   ├── config.js             # configurações
-│   ├── setup.js              # assistente de primeira execução
+│   ├── setup.js              # assistente de primeira execução (e de perfil novo)
+│   ├── backdrop.js           # fundo do assistente e da escolha de perfil (mundo girando)
 │   ├── citypicker.js         # lista de cidades (marcar várias; assistente e +)
 │   └── vendor/               # MapLibre + PMTiles; flags/ = bandeiras (flag-icons, MIT);
 │                             # world-lite.geojson = mundo do fundo do assistente (Natural Earth)
@@ -209,12 +223,14 @@ scratch-map/
 │   ├── build-status.json, build.log  # andamento da montagem pelo assistente
 │   └── raw/ work/            # downloads e intermediários do build (dá para apagar)
 ├── data/                     # SEUS DADOS (não versionado — faça backup)
-│   ├── scratch.db            # visitas, monumentos, metadados das fotos, limites das cidades
-│   ├── setup.json            # o que o assistente decidiu (concluído, modo)
-│   ├── flags/                # bandeiras de estado baixadas do Wikidata (<ID>.webp)
-│   ├── profile.jpg           # foto de perfil
-│   ├── backups/              # cópias automáticas "antes de restaurar" (5 últimas)
-│   └── photos/{orig,display,thumb,trash}/
+│   ├── setup.json            # o que o assistente decidiu (concluído, modo): da casa toda
+│   ├── profiles/<id>/        # um por perfil (profiles.py):
+│   │   ├── scratch.db        #   visitas, monumentos, metadados das fotos, limites das cidades, configurações
+│   │   ├── flags/            #   bandeiras de estado baixadas do Wikidata (<ID>.webp)
+│   │   ├── profile.jpg       #   foto de perfil
+│   │   ├── backups/          #   cópias automáticas "antes de restaurar" (5 últimas)
+│   │   └── photos/{orig,display,thumb,trash}/
+│   └── profiles-removed/     # perfis apagados (<id>-<data>; dá para trazer de volta à mão)
 └── deploy/scratch-map.service
 ```
 
@@ -227,7 +243,7 @@ scratch-map/
   para os já visitados), `flags.py` pede ao Wikidata, em segundo plano, as
   bandeiras dos estados dele, ligando pelo código ISO 3166-2 (o mesmo id do
   app, ex. `BR-SP`), e guarda uma miniatura de 160 px em
-  `data/flags/<ID>.webp` (~5 KB cada; os 27 do Brasil somam 140 KB). Cada país
+  `flags/<ID>.webp`, na pasta do perfil (~5 KB cada; os 27 do Brasil somam 140 KB). Cada país
   é buscado uma vez (tabela `state_flags_fetched`); sem rede, tenta de novo
   na próxima marcação ou subida. Quando o Wikidata limita as requisições
   (429), espera e tenta de novo.
@@ -310,7 +326,7 @@ antigo (maior sobreposição) e mostra o de-para antes de aplicar.
 
 O GeoNames só tem o ponto central de cada cidade. O contorno vem das áreas de
 cidade do Overture (`geoshapes.py`), calculado **uma vez por cidade, ao
-marcar** (~1 s), e guardado em `data/scratch.db` (tabela `city_shapes`):
+marcar** (~1 s), e guardado no `scratch.db` do perfil (tabela `city_shapes`):
 
 1. Áreas (`locality`, `localadmin`, `county`) que contêm o ponto.
 2. Entre as de **nome igual** (ou, se não houver, **parecido**: "New York" ⊂
@@ -412,7 +428,8 @@ systemctl --user enable --now scratch-map
 ### Configuração
 
 Tudo pela página **Configurações** (engrenagem no Perfil), gravado na tabela
-`settings` de `data/scratch.db` (vale em todos os aparelhos):
+`settings` do `scratch.db` do perfil (vale em todos os aparelhos; cada perfil
+tem as suas):
 
 | Chave | Efeito |
 |---|---|
@@ -425,10 +442,13 @@ Tudo pela página **Configurações** (engrenagem no Perfil), gravado na tabela
 | `borders_country`, `borders_state`, `borders_city` | `1`/`0`: linha branca entre países, entre estados e em volta das cidades. Sem a chave: países e estados ligados, cidades desligado |
 | `ext_landmark_name`, `ext_city_shape`, `ext_state_flags` | `0` = pedido externo desligado (sem a chave: ligado) |
 
-### Outra instância (outra pessoa)
+### Outra instância
+
+Para a família, use perfis (acima). Uma instância separada só faz sentido para
+dados que não devem nem aparecer na mesma tela de perfis:
 
 ```bash
-SCRATCH_DATA=/caminho/para/dados-da-fulana venv/bin/gunicorn -b 0.0.0.0:5021 app:app
+SCRATCH_DATA=/caminho/para/outros-dados venv/bin/gunicorn -b 0.0.0.0:5021 app:app
 ```
 
 O código e o `geodata/` são compartilhados; cada instância tem sua própria pasta
@@ -453,7 +473,7 @@ journalctl --user -u scratch-map -f
 systemctl --user restart scratch-map    # depois de mudar código
 ```
 
-**Backup**: pela tela (Configurações → Backup → "Baixar backup"): um `.zip`
+**Backup**: é por perfil. Pela tela (Configurações → Backup → "Baixar backup"): um `.zip`
 com o banco (visitas, monumentos, configurações, contornos), as fotos
 (original, exibição e miniatura), as bandeiras baixadas e a foto de perfil,
 mais um `manifest.json`. A lixeira de fotos fica de fora. O banco é copiado
@@ -462,13 +482,13 @@ mostra quando foi o último baixado.
 
 **Restaurar**: na mesma tela, escolhendo o `.zip`. O servidor confere que é um
 backup do scratch map (manifesto, banco íntegro, só caminhos conhecidos),
-guarda o estado atual em `data/backups/antes-de-restaurar-<data>.zip` (ficam
+guarda o estado atual em `data/profiles/<id>/backups/antes-de-restaurar-<data>.zip` (ficam
 as 5 mais recentes) e troca tudo. Para desfazer, restaure essa cópia.
 
-Sem a tela: tudo o que importa está em `data/`. Copiar a pasta com o serviço
-parado também serve.
+Sem a tela: tudo o que importa está em `data/` (um perfil: `data/profiles/<id>/`).
+Copiar a pasta com o serviço parado também serve.
 
-**Fotos apagadas** não somem: vão para `data/photos/trash/`, inclusive as que
+**Fotos apagadas** não somem: vão para `photos/trash/` na pasta do perfil, inclusive as que
 saem junto quando você desmarca um lugar. Para limpar, apague a pasta à mão.
 
 ## API
@@ -489,6 +509,9 @@ saem junto quando você desmarca um lugar. Para limpar, apague a pasta à mão.
 | POST | `/api/setup/start` | `{mode: "leve" \| "completo"}`: conclui o assistente e começa (ou retoma) a montagem |
 | POST | `/api/flags/refetch` | busca de novo as bandeiras de estado (409 se desligadas) |
 | POST / DELETE | `/api/profile/photo` | foto de perfil (multipart `photo`) / remove |
+| DELETE | `/api/profile` | apaga o perfil em uso (move para `data/profiles-removed/`; não o único) |
+| GET | `/perfis` | "quem está usando?"; `/perfis/<id>/usar` escolhe (cookie `perfil`), `/perfis/<id>/foto.jpg` |
+| POST | `/perfis/novo` | cria um perfil e abre o assistente para ele |
 | GET | `/api/stats` | álbum: países com bandeira (`visited`) e totais por tipo |
 | GET | `/api/stats/country/<id>` | estados do país, com cidades visitadas em cada |
 | GET | `/api/stats/state/<id>` | cidades do estado (visitadas, depois por população) |

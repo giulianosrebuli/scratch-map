@@ -215,7 +215,6 @@
  "Não deu para ler: {erro}": "Couldn't read: {erro}",
  "Restaurar \"{arquivo}\"?\n\nTodas as visitas, monumentos, fotos e configurações atuais serão trocadas pelas do backup. Uma cópia do estado atual fica guardada no servidor antes.": "Restore \"{arquivo}\"?\n\nAll current visits, landmarks, photos and settings will be replaced by the backup's. A copy of the current state is kept on the server first.",
  "Enviando {tamanho}…": "Uploading {tamanho}…",
- "Backup restaurado ({lugares} lugares, {fotos} fotos).\nO estado anterior foi guardado em data/backups/{arquivo}.": "Backup restored ({lugares} places, {fotos} photos).\nThe previous state was saved in data/backups/{arquivo}.",
  "Não deu para restaurar: {erro}": "Couldn't restore: {erro}",
  "sem data": "no date",
  "↓ Mais novas": "↓ Newest",
@@ -252,5 +251,17 @@
  "o banco dentro do backup está corrompido": "the database inside the backup is corrupted",
  "bandeiras de estado desligadas na configuração": "state flags are turned off in settings",
  "{nome} (estado)": "{nome} (state)",
- "{nome} (país)": "{nome} (country)"
+ "{nome} (país)": "{nome} (country)",
+ "Backup restaurado ({lugares} lugares, {fotos} fotos).\nO estado anterior foi guardado em {arquivo}.": "Backup restored ({lugares} places, {fotos} photos).\nThe previous state was saved in {arquivo}.",
+ "Perfis": "Profiles",
+ "Quem está usando?": "Who's using the map?",
+ "Sem nome": "No name",
+ "Adicionar perfil": "Add profile",
+ "Cada perfil tem suas próprias visitas, fotos e configurações. Este aparelho lembra a escolha.": "Each profile has its own visits, photos and settings. This device remembers the choice.",
+ "Trocar de perfil": "Switch profile",
+ "Apaga as visitas, os monumentos, as fotos e as configurações deste perfil. Os outros perfis não mudam. A pasta dele fica guardada no servidor, em data/profiles-removed/.": "Deletes this profile's visits, landmarks, photos and settings. Other profiles don't change. Its folder is kept on the server, in data/profiles-removed/.",
+ "Apagar este perfil": "Delete this profile",
+ "Apagar este perfil? As visitas, os monumentos, as fotos e as configurações dele saem do app.": "Delete this profile? Its visits, landmarks, photos and settings will be removed from the app.",
+ "Não deu para apagar: {erro}": "Couldn't delete: {erro}",
+ "é o único perfil": "it's the only profile"
 }

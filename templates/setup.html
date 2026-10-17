@@ -6,7 +6,8 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/maplibre-gl.css') }}">
 {% include '_head.html' %}
 </head>
-{# Assistente de primeira execução (installer.py). Ao fundo, um mapa-múndi
+{# Assistente de primeira execução (installer.py) e de perfil novo (new_profile:
+   sem os dados do mapa, já montados). Ao fundo, um mapa-múndi
    leve (os dados do mapa ainda não existem) girando devagar e desfocado; na
    frente, um cartão com um passo por vez. O JS (static/setup.js) troca o passo
    e grava cada escolha na hora. #}
@@ -15,7 +16,7 @@
   <main class="setup">
    <div class="setup-card" id="card">
     <ol class="setup-dots" id="dots" aria-hidden="true">
-      <li data-for="profile"></li><li data-for="view"></li><li data-for="data"></li>
+      <li data-for="profile"></li><li data-for="view"></li>{% if not new_profile %}<li data-for="data"></li>{% endif %}
     </ol>
 
     <section class="setup-step" data-step="welcome">
@@ -73,7 +74,7 @@
       <p class="hint">{{ _('"Cidades de um país" e "posição fixa" ficam em Configurações, depois que o mapa estiver pronto.') }}</p>
       <div class="setup-nav">
         <button class="ghost" data-go="profile">‹ {{ _('Voltar') }}</button>
-        <button class="btn" data-go="data">{{ _('Continuar') }}</button>
+        <button class="btn" data-go="{{ 'cities' if new_profile else 'data' }}">{{ _('Continuar') }}</button>
       </div>
     </section>
 
@@ -150,9 +151,10 @@
   </main>
 
   <div id="toast" role="status" hidden></div>
-  <script>window.SETUP = {{ {'state': state, 'counts': counts} | tojson }};</script>
+  <script>window.SETUP = {{ {'state': state, 'counts': counts, 'newProfile': new_profile} | tojson }};</script>
   <script src="{{ url_for('static', filename='vendor/maplibre-gl.js') }}"></script>
   <script src="{{ url_for('static', filename='common.js') }}"></script>
+  <script src="{{ url_for('static', filename='backdrop.js') }}"></script>
   <script src="{{ url_for('static', filename='citypicker.js') }}"></script>
   <script src="{{ url_for('static', filename='setup.js') }}"></script>
 </body>

@@ -2,10 +2,11 @@
    Um passo por vez: boas-vindas (idioma; começar ou restaurar um backup) →
    perfil → vista inicial → dados do mapa → montagem (progresso) → lista de
    cidades. Cada escolha é gravada na hora; "Montar o mapa" começa a montagem
-   no servidor. */
+   no servidor. Perfil novo (com o mapa já montado): sem os dados e a montagem,
+   da vista inicial direto para a lista de cidades. */
 (() => {
   const { $, api, json, t, LANG } = window.SM;
-  const { state } = window.SETUP;
+  const { state, newProfile } = window.SETUP;
   const save = (body) => api('/api/settings', json('PATCH', body)).catch((e) => toast(t('Não deu para salvar: {erro}', { erro: e.message })));
   const params = new URLSearchParams(location.search);
 
@@ -21,49 +22,9 @@
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   // ------------------------------------------------------------------ mapa ao fundo
-  // Mundo leve (Natural Earth, static/vendor/world-lite.geojson): os dados do
-  // mapa ainda não foram montados. Gira para leste, como a Terra: o chão anda
-  // para a direita na tela. Na entrada, desfoca e o cartão aparece (CSS).
-  const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
-  const DEG_PER_S = 2.5;
-  const map = new maplibregl.Map({
-    container: 'setup-map',
-    style: {
-      version: 8,
-      sources: { world: { type: 'geojson', data: '/static/vendor/world-lite.geojson' } },
-      layers: [
-        { id: 'water', type: 'background', paint: { 'background-color': css('--water') } },
-        { id: 'land', type: 'fill', source: 'world', paint: { 'fill-color': css('--land') } },
-        { id: 'borders', type: 'line', source: 'world', paint: { 'line-color': css('--border'), 'line-width': 0.6 } },
-      ],
-    },
-    center: [-20, 18], zoom: window.innerWidth < 600 ? 1.4 : 2, interactive: false, attributionControl: false,
-  });
-  let intro = false;
-  const reveal = () => {
-    if (intro) return;
-    intro = true;
-    document.body.classList.add('revealed');
-  };
-  if (params.has('lang')) {
-    document.body.classList.add('no-intro');
-    reveal();
-    requestAnimationFrame(() => requestAnimationFrame(() => document.body.classList.remove('no-intro')));
-    history.replaceState(null, '', '/setup');
-  }
-  map.once('load', () => setTimeout(reveal, 250));
-  setTimeout(reveal, 1500);  // mapa lento ou sem WebGL: o cartão aparece mesmo assim
-  if (!reduceMotion) {
-    let last = performance.now();
-    const spin = (now) => {
-      const c = map.getCenter();
-      const lon = c.lng - DEG_PER_S * Math.min(now - last, 100) / 1000;
-      map.jumpTo({ center: [lon < -180 ? lon + 360 : lon, c.lat] });
-      last = now;
-      requestAnimationFrame(spin);
-    };
-    requestAnimationFrame(spin);
-  }
+  // static/backdrop.js; voltando da troca de idioma, sem a entrada de novo
+  window.SM.backdrop({ instant: params.has('lang') });
+  if (params.has('lang')) history.replaceState(null, '', '/setup');
 
   // ------------------------------------------------------------------ passos
   // Troca suave: o passo atual sai deslizando, o cartão acompanha a altura do
@@ -253,7 +214,9 @@
 
   // ------------------------------------------------------------------ início
   const restored = params.get('restored');
-  if (state.done) {
+  if (newProfile) {
+    go('welcome');  // perfil novo (restaurar um backup leva direto ao mapa)
+  } else if (state.done) {
     go('build');
   } else if (restored) {
     const [v, p] = restored.split(',');

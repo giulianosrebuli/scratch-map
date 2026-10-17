@@ -5,4 +5,4 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
   {% if prefs.colors %}<style id="user-colors">:root { {% for k, v in prefs.colors.items() %}--{{ k }}: {{ v }}; {% endfor %}}</style>{% endif %}
   {# idioma da interface: SM.t() (static/common.js) traduz com esta tabela (i18n.py) #}
-  <script>window.LANG = {{ lang | tojson }}; window.I18N = {{ i18n_table | tojson }};</script>
+  <script>window.LANG = {{ lang | tojson }}; window.I18N = {{ i18n_table | tojson }}; window.PROFILE = {{ profile_id | tojson }};</script>
