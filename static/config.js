@@ -128,13 +128,24 @@
       const text = await r.text();
       if (!r.ok) throw new Error(text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200));
       const res = JSON.parse(text);
-      alert(t('Backup restaurado ({lugares} lugares, {fotos} fotos).\nO estado anterior foi guardado em data/backups/{arquivo}.',
-        { lugares: res.restored.visits, fotos: res.restored.photos, arquivo: res.safety }));
+      alert(t('Backup restaurado ({lugares} lugares, {fotos} fotos).\nO estado anterior foi guardado em {arquivo}.',
+        { lugares: res.restored.visits, fotos: res.restored.photos, arquivo: `data/profiles/${window.PROFILE}/backups/${res.safety}` }));
       location.reload();
     } catch (e) {
       alert(t('Não deu para restaurar: {erro}', { erro: e.message }));
       restoreBtn.disabled = false;
       restoreBtn.textContent = t('Escolher arquivo…');
+    }
+  });
+
+  // ------------------------------------------------------------------ perfil
+  $('#delete-profile')?.addEventListener('click', async () => {
+    if (!confirm(t('Apagar este perfil? As visitas, os monumentos, as fotos e as configurações dele saem do app.'))) return;
+    try {
+      await api('/api/profile', { method: 'DELETE' });
+      location.href = '/perfis';
+    } catch (e) {
+      alert(t('Não deu para apagar: {erro}', { erro: e.message }));
     }
   });
 

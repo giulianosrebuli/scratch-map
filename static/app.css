@@ -168,6 +168,7 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 }
 .btn.secondary { background: var(--card); color: var(--ink); border-color: var(--line); }
 .btn.flag { background: var(--flag); border-color: var(--flag); color: #fff; display: inline-flex; align-items: center; gap: 6px; }
+.btn.danger { background: var(--card); color: #c0392b; border-color: color-mix(in srgb, #c0392b 45%, var(--line)); align-self: flex-start; }
 .btn svg { width: 16px; height: 16px; }
 .btn.flag .cloth { fill: currentColor; }
 .btn:disabled { opacity: .5; cursor: progress; }
@@ -876,3 +877,21 @@ body.no-intro #setup-map, body.no-intro .setup, body.no-intro .setup-card { tran
 .picker-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .picker-count { font-size: 13px; color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .picker-go { flex: none; padding: 10px 16px; font-weight: 600; }
+
+/* ---------- perfis ("quem está usando?") ---------- */
+.people {
+  list-style: none; margin: 4px 0 0; padding: 0;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 18px 10px;
+}
+.people form { margin: 0; }
+.person {
+  width: 100%; display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 6px 4px; border: none; background: none; border-radius: 14px;
+  color: var(--ink); font: inherit; text-decoration: none; cursor: pointer;
+}
+.person b { font-size: 15px; font-weight: 600; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.person .avatar { transition: transform .15s ease, box-shadow .15s ease; }
+.person:hover .avatar, .person:focus-visible .avatar { transform: scale(1.05); }
+.person[aria-current] .avatar { box-shadow: 0 0 0 3px var(--card), 0 0 0 5px var(--ink), 0 4px 14px rgba(0, 0, 0, .14); }
+.person.add .avatar { background: none; border: 2px dashed var(--line); box-shadow: none; }
+.person.add b { color: var(--muted); }

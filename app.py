@@ -3,8 +3,8 @@
 Backend Flask + SQLite. Dois bancos:
   geodata/geo.db   referência (países, estados, cidades, aeroportos) — gerado por
                    scripts/build_geodata.py, somente leitura
-  data/scratch.db  seus dados (visitas e fotos) — é o que importa fazer backup,
-                   junto com data/photos/
+  data/profiles/<id>/scratch.db  os dados de cada perfil (visitas e fotos) — é
+                   o que importa fazer backup, junto com as fotos (profiles.py)
 """
 import datetime as dt
 import gzip
@@ -19,7 +19,8 @@ import uuid
 import zipfile
 from pathlib import Path
 
-from flask import Flask, abort, g, jsonify, redirect, render_template, request, send_file, send_from_directory
+from flask import (Flask, abort, g, has_request_context, jsonify, redirect, render_template, request, send_file,
+                   send_from_directory)
 from PIL import Image, ImageOps
 from pillow_heif import register_heif_opener
 from shapely.geometry import Point, shape
@@ -27,6 +28,7 @@ from shapely.geometry import Point, shape
 import boundaries
 import i18n
 import installer
+import profiles
 import flags as state_flags  # o nome "flags" já é uma função aqui
 
 register_heif_opener()  # fotos .HEIC do iPhone
@@ -36,8 +38,6 @@ DATA = Path(os.environ.get("SCRATCH_DATA", ROOT / "data"))
 GEODATA = Path(os.environ.get("SCRATCH_GEODATA", ROOT / "geodata"))
 GEO_DB = GEODATA / "geo.db"
 TILES = GEODATA / "world.pmtiles"
-DB = DATA / "scratch.db"
-PHOTOS = DATA / "photos"
 KINDS = ("country", "state", "city", "airport")   # o que pode ser marcado (visits)
 PHOTO_KINDS = KINDS + ("landmark",)                # o que pode ter foto
 DISPLAY_PX = 2000  # lado maior da versão exibida
@@ -82,10 +82,24 @@ CREATE TABLE IF NOT EXISTS landmarks (
 """ + boundaries.SCHEMA + state_flags.SCHEMA
 
 
+def prof():
+    """O perfil desta requisição (pick_profile), com os caminhos dos dados dele."""
+    return g.prof
+
+
+def each_profile(fn):
+    """fn() uma vez para cada perfil, com prof() e db() apontando para ele."""
+    for p in profiles.list_all():
+        with app.app_context():
+            g.prof = p
+            fn()
+
+
 def init_storage():
-    for d in (DATA, PHOTOS / "orig", PHOTOS / "display", PHOTOS / "thumb", PHOTOS / "trash"):
+    for d in (prof().dir, prof().photos / "orig", prof().photos / "display", prof().photos / "thumb",
+              prof().photos / "trash"):
         d.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(DB) as con:
+    with sqlite3.connect(prof().db) as con:
         con.executescript(SCHEMA)
         con.row_factory = sqlite3.Row
         # rascunho de landmark abandonado (fechou a página no meio): fotos vão pro trash
@@ -97,13 +111,15 @@ def init_storage():
 
 def geo_ready():
     """O que depende dos dados do mapa, em segundo plano: bandeiras de estado dos
-    países visitados e contornos de cidade que faltam. Na subida, ou quando a
-    montagem da primeira execução termina."""
-    with sqlite3.connect(DB) as con:
-        con.execute(f"ATTACH DATABASE 'file:{GEO_DB}?mode=ro' AS geo")
-        fetch_state_flags(con)
-        if not app.config.get("TESTING"):
-            boundaries.start_backfill(DB, GEO_DB, allow_nominatim=ext_on("ext_city_shape", con))
+    países visitados e contornos de cidade que faltam, de cada perfil. Na
+    subida, ou quando a montagem da primeira execução termina."""
+    each_profile(geo_ready_profile)
+
+
+def geo_ready_profile():
+    fetch_state_flags()
+    if not app.config.get("TESTING"):
+        boundaries.start_backfill(prof().db, GEO_DB, allow_nominatim=ext_on("ext_city_shape"))
 
 
 _installed = False
@@ -120,7 +136,7 @@ def installed():
 
 def db():
     if "db" not in g:
-        g.db = sqlite3.connect(DB)
+        g.db = sqlite3.connect(prof().db)
         g.db.row_factory = sqlite3.Row
         g.db.execute("PRAGMA foreign_keys = ON")
         if GEO_DB.exists():  # na primeira execução, só depois da montagem
@@ -202,6 +218,26 @@ SETUP_OPEN = ("/setup", "/api/setup", "/static/", "/api/restore", "/api/settings
               "/api/profile/photo", "/profile.jpg")
 
 
+# Perfis (profiles.py): o do cookie; com um perfil só, ele mesmo. Com vários e
+# nenhum escolhido, a tela de escolha (que usa o primeiro só para idioma e tema).
+PROFILE_FREE = ("/static/", "/perfis")
+
+
+@app.before_request
+def pick_profile():
+    p = profiles.get(request.cookies.get(profiles.COOKIE))
+    if p is None:
+        every = profiles.list_all()
+        if len(every) == 1 or request.path.startswith(PROFILE_FREE):
+            p = every[0]
+        elif request.path.startswith("/api/"):
+            abort(409, "escolha um perfil em /perfis")
+        else:
+            return redirect("/perfis")
+    g.prof = p
+    return None
+
+
 @app.before_request
 def setup_gate():
     if installed() or request.path.startswith(SETUP_OPEN):
@@ -213,10 +249,12 @@ def setup_gate():
 
 @app.get("/setup")
 def setup_page():
-    if installed():
+    # depois de instalado, só para um perfil novo (setup_pending): sem a parte
+    # dos dados do mapa, que já estão prontos
+    if installed() and not settings().get("setup_pending"):
         return redirect("/")
     return render_template("setup.html", settings=settings(), state=installer.state(),
-                           counts=backup_counts(db()))
+                           counts=backup_counts(db()), new_profile=installed())
 
 
 @app.get("/api/setup")
@@ -238,6 +276,9 @@ def setup_start():
 
 @app.get("/")
 def index():
+    if settings().get("setup_pending"):  # perfil novo chegou ao mapa: assistente concluído
+        set_setting("setup_pending", None)
+        db().commit()
     # versão dos tiles = mtime; muda quando o build_geodata roda e fura o cache do navegador
     geo_v = int(TILES.stat().st_mtime)
     return render_template("index.html", geo_v=geo_v, settings=settings())
@@ -257,10 +298,10 @@ def mural():
 
 
 # ------------------------------------------------------------------ preferências e perfil
-# Ficam na tabela settings (instância de um usuário só): valem em todos os
+# Ficam na tabela settings do perfil (profiles.py): valem em todos os
 # aparelhos. theme: light | dark | auto (segue o sistema). color_<tipo>: cor do
 # mapa (sem a chave = padrão do CSS). profile_name; profile_photo = versão da
-# foto (data/profile.jpg), para furar o cache do navegador. Vista inicial:
+# foto (profile.jpg do perfil), para furar o cache do navegador. Vista inicial:
 # start_view, home_country, start_fixed (ver settings()).
 THEMES = ("light", "dark", "auto")
 LANGUAGES = tuple(i18n.LANGS)
@@ -280,7 +321,6 @@ MAP_COLORS = {  # mesmos padrões do :root em static/app.css
     "water": "#86b9dc", "land": "#8db37c", "country": "#f2b143", "state": "#e5705b",
     "city": "#6a4bc0", "airport": "#1f3a68", "landmark": "#0d7f73",
 }
-PROFILE_PHOTO = DATA / "profile.jpg"
 
 
 def prefs():
@@ -300,9 +340,14 @@ def lang():
     """Idioma da interface: o escolhido (language); no assistente, antes de
     escolher, o do navegador; instalação de antes da tradução, português."""
     if "lang" not in g:
-        chosen = settings().get("language")
-        g.lang = (chosen if chosen in LANGUAGES else i18n.DEFAULT if installer.done()
-                  else i18n.from_header(request.headers.get("Accept-Language")))
+        st = settings()
+        chosen = st.get("language")
+        if chosen in LANGUAGES:
+            g.lang = chosen
+        elif has_request_context() and (not installer.done() or st.get("setup_pending")):
+            g.lang = i18n.from_header(request.headers.get("Accept-Language"))
+        else:
+            g.lang = i18n.DEFAULT
     return g.lang
 
 
@@ -314,7 +359,8 @@ def tr(text, **kw):
 def inject_prefs():
     # tema, cores e idioma entram no <head> de todas as páginas (templates/_head.html)
     return {"prefs": prefs(), "map_colors": MAP_COLORS, "_": tr, "lang": lang(),
-            "i18n_table": i18n.table(lang()), "languages": i18n.LANGS}
+            "i18n_table": i18n.table(lang()), "languages": i18n.LANGS,
+            "profile_id": prof().id, "profile_count": len(profiles.list_all())}
 
 
 def valid_view(value):
@@ -381,7 +427,7 @@ def upload_profile_photo():
         with Image.open(f.stream) as img:
             img = ImageOps.exif_transpose(img).convert("RGB")
             img = ImageOps.fit(img, (512, 512), Image.LANCZOS)
-            img.save(PROFILE_PHOTO, "JPEG", quality=88, optimize=True)
+            img.save(prof().photo, "JPEG", quality=88, optimize=True)
     except Exception as e:
         abort(400, tr("imagem inválida: {erro}", erro=e))
     set_setting("profile_photo", uuid.uuid4().hex[:8])
@@ -391,7 +437,7 @@ def upload_profile_photo():
 
 @app.delete("/api/profile/photo")
 def delete_profile_photo():
-    PROFILE_PHOTO.unlink(missing_ok=True)
+    prof().photo.unlink(missing_ok=True)
     set_setting("profile_photo", None)
     db().commit()
     return jsonify(prefs())
@@ -399,9 +445,63 @@ def delete_profile_photo():
 
 @app.get("/profile.jpg")
 def profile_photo():
-    if not PROFILE_PHOTO.exists():
+    if not prof().photo.exists():
         abort(404)
-    return send_file(PROFILE_PHOTO, mimetype="image/jpeg", max_age=30 * 86400)
+    return send_file(prof().photo, mimetype="image/jpeg", max_age=30 * 86400)
+
+
+# ------------------------------------------------------------------ perfis
+# Tela "quem está usando?" (/perfis): escolher grava o cookie neste aparelho.
+# Perfil novo passa pelo assistente sem a parte dos dados do mapa.
+def use(resp, p):
+    resp.set_cookie(profiles.COOKIE, p.id, max_age=10 * 365 * 86400, samesite="Lax")
+    return resp
+
+
+@app.get("/perfis")
+def profiles_page():
+    chosen = profiles.get(request.cookies.get(profiles.COOKIE))
+    return render_template("perfis.html", people=[p.info() for p in profiles.list_all()],
+                           chosen=chosen and chosen.id, can_add=installed())
+
+
+@app.get("/perfis/<pid>/usar")
+def use_profile(pid):
+    return use(redirect("/"), profiles.get(pid) or abort(404))
+
+
+@app.get("/perfis/<pid>/foto.jpg")
+def profile_photo_of(pid):
+    p = profiles.get(pid) or abort(404)
+    if not p.photo.exists():
+        abort(404)
+    return send_file(p.photo, mimetype="image/jpeg", max_age=30 * 86400)
+
+
+@app.post("/perfis/novo")
+def new_profile():
+    if not installed():
+        abort(409, "instalação em andamento")
+    p = profiles.create()
+    with app.app_context():
+        g.prof = p
+        init_storage()
+        set_setting("setup_pending", "1")
+        db().commit()
+    return use(redirect("/setup"), p)
+
+
+@app.delete("/api/profile")
+def delete_profile():
+    """Apaga o perfil em uso (a pasta vai para data/profiles-removed/). O
+    único perfil não pode ser apagado."""
+    if len(profiles.list_all()) < 2:
+        abort(409, tr("é o único perfil"))
+    close_db(None)
+    profiles.remove(prof())
+    resp = jsonify(ok=True)
+    resp.delete_cookie(profiles.COOKIE)
+    return resp
 
 
 # ------------------------------------------------------------------ backup
@@ -409,10 +509,9 @@ def profile_photo():
 # contornos de cidade), as fotos (original + exibição + miniatura), as bandeiras
 # baixadas e a foto de perfil. A lixeira de fotos fica de fora. Restaurar troca
 # tudo pelo conteúdo do .zip, depois de guardar uma cópia do estado atual em
-# data/backups/.
+# backups/ do perfil.
 BACKUP_DIRS = ("photos/orig", "photos/display", "photos/thumb", "flags")
 BACKUP_FILES = ("manifest.json", "scratch.db", "profile.jpg")
-BACKUPS = DATA / "backups"
 KEEP_SAFETY = 5   # cópias "antes de restaurar" guardadas (as mais antigas saem)
 
 
@@ -425,9 +524,9 @@ def backup_counts(con):
 def write_backup(path):
     """Grava o .zip em path. O banco é copiado pela API de backup do SQLite
     (cópia consistente mesmo com o app no ar)."""
-    with tempfile.TemporaryDirectory(dir=DATA) as tmp:
+    with tempfile.TemporaryDirectory(dir=prof().dir) as tmp:
         dbcopy = Path(tmp) / "scratch.db"
-        src, dst = sqlite3.connect(DB), sqlite3.connect(dbcopy)
+        src, dst = sqlite3.connect(prof().db), sqlite3.connect(dbcopy)
         try:
             src.backup(dst)
             counts = backup_counts(dst)
@@ -440,24 +539,24 @@ def write_backup(path):
             z.writestr("manifest.json", json.dumps(manifest, indent=2))
             z.write(dbcopy, "scratch.db", compress_type=zipfile.ZIP_DEFLATED)
             for part in BACKUP_DIRS:  # jpg/webp já são comprimidos: só guarda
-                for f in sorted((DATA / part).glob("*")):
+                for f in sorted((prof().dir / part).glob("*")):
                     if f.is_file():
                         z.write(f, f"{part}/{f.name}")
-            if PROFILE_PHOTO.exists():
-                z.write(PROFILE_PHOTO, "profile.jpg")
+            if prof().photo.exists():
+                z.write(prof().photo, "profile.jpg")
     return manifest
 
 
 @app.get("/api/backup/info")
 def backup_info():
-    size = DB.stat().st_size + sum(f.stat().st_size for part in BACKUP_DIRS
-                                   for f in (DATA / part).glob("*") if f.is_file())
+    size = prof().db.stat().st_size + sum(f.stat().st_size for part in BACKUP_DIRS
+                                   for f in (prof().dir / part).glob("*") if f.is_file())
     return jsonify(**backup_counts(db()), bytes=size, last_backup=settings().get("last_backup"))
 
 
 @app.get("/api/backup")
 def download_backup():
-    fd, tmp = tempfile.mkstemp(suffix=".zip", dir=DATA)
+    fd, tmp = tempfile.mkstemp(suffix=".zip", dir=prof().dir)
     os.close(fd)
     write_backup(tmp)
     set_setting("last_backup", dt.datetime.now().isoformat(timespec="seconds"))
@@ -480,9 +579,9 @@ def backup_member_ok(name):
 
 @app.post("/api/restore")
 def restore_backup():
-    """Troca os dados pelos do .zip. Antes, guarda o estado atual em data/backups/."""
+    """Troca os dados pelos do .zip. Antes, guarda o estado atual em backups/ do perfil."""
     f = request.files.get("backup") or abort(400, tr("nenhum arquivo"))
-    with tempfile.TemporaryDirectory(dir=DATA) as tmp:
+    with tempfile.TemporaryDirectory(dir=prof().dir) as tmp:
         zpath = Path(tmp) / "in.zip"
         f.save(zpath)
         try:
@@ -514,26 +613,26 @@ def restore_backup():
                 abort(400, tr("o banco dentro do backup está corrompido"))
 
             # rede de segurança: o estado atual, antes de trocar
-            BACKUPS.mkdir(exist_ok=True)
-            safety = BACKUPS / f"antes-de-restaurar-{dt.datetime.now():%Y-%m-%d-%H%M%S}.zip"
+            prof().backups.mkdir(exist_ok=True)
+            safety = prof().backups / f"antes-de-restaurar-{dt.datetime.now():%Y-%m-%d-%H%M%S}.zip"
             write_backup(safety)
-            for old in sorted(BACKUPS.glob("antes-de-restaurar-*.zip"))[:-KEEP_SAFETY]:
+            for old in sorted(prof().backups.glob("antes-de-restaurar-*.zip"))[:-KEEP_SAFETY]:
                 old.unlink()
 
-            src, dst = sqlite3.connect(newdb), sqlite3.connect(DB)
+            src, dst = sqlite3.connect(newdb), sqlite3.connect(prof().db)
             try:
                 src.backup(dst)  # troca o conteúdo do banco em uso, sem apagar o arquivo
             finally:
                 src.close()
                 dst.close()
             for part in BACKUP_DIRS:
-                shutil.rmtree(DATA / part, ignore_errors=True)
-                (DATA / part).mkdir(parents=True)
-            PROFILE_PHOTO.unlink(missing_ok=True)
+                shutil.rmtree(prof().dir / part, ignore_errors=True)
+                (prof().dir / part).mkdir(parents=True)
+            prof().photo.unlink(missing_ok=True)
             for n in names:
                 if n.endswith("/") or n in ("manifest.json", "scratch.db"):
                     continue
-                with z.open(n) as src_f, open(DATA / n, "wb") as out:
+                with z.open(n) as src_f, open(prof().dir / n, "wb") as out:
                     shutil.copyfileobj(src_f, out)
     init_storage()  # backup mais antigo: cria as tabelas que faltarem
     if installed():
@@ -636,28 +735,27 @@ def visited():
 # ------------------------------------------------------------------ stats
 # Bandeiras: de país (e as poucas subdivisões que o pacote tem) prontas em
 # static/vendor/flags/<ID>.svg (flag-icons, quadradas); de estado, baixadas do
-# Wikidata para data/flags/<ID>.webp quando o país é visitado (flags.py).
+# Wikidata para flags/<ID>.webp do perfil quando o país é visitado (flags.py).
 # Estado/cidade sem bandeira: sigla na tela.
 FLAGS = ROOT / "static" / "vendor" / "flags"
 FLAG_IDS = {p.stem for p in FLAGS.glob("*.svg")}
-STATE_FLAGS = DATA / "flags"
 
 
 def flag_url(place_id):
     if place_id in FLAG_IDS:
         return f"/static/vendor/flags/{place_id}.svg"
-    if (STATE_FLAGS / f"{place_id}.webp").exists():
+    if (prof().flags / f"{place_id}.webp").exists():
         return f"/flags/{place_id}.webp"
     return None
 
 
-def fetch_state_flags(con=None):
+def fetch_state_flags():
     """Bandeiras dos estados dos países visitados (em segundo plano, uma vez por
     país). Nada se desligado na configuração (ext_state_flags)."""
-    if not ext_on("ext_state_flags", con):
+    if not ext_on("ext_state_flags"):
         return
-    countries = [r[0] for r in (con or db()).execute(VISITED_COUNTRIES_SQL)]
-    state_flags.ensure(DB, GEO_DB, STATE_FLAGS, countries)
+    countries = [r[0] for r in db().execute(VISITED_COUNTRIES_SQL)]
+    state_flags.ensure(prof().db, GEO_DB, prof().flags, countries)
 
 
 @app.post("/api/flags/refetch")
@@ -674,7 +772,7 @@ def refetch_state_flags():
 
 @app.get("/flags/<name>")
 def state_flag(name):
-    return send_from_directory(STATE_FLAGS, name, max_age=30 * 86400)
+    return send_from_directory(prof().flags, name, max_age=30 * 86400)
 
 
 def by_visited(rows, key=lambda r: r["name"]):
@@ -866,7 +964,7 @@ def add_visits_batch():
     db().commit()
     fetch_state_flags()
     if known and not app.config.get("TESTING"):
-        boundaries.start_backfill(DB, GEO_DB, allow_nominatim=ext_on("ext_city_shape"))
+        boundaries.start_backfill(prof().db, GEO_DB, allow_nominatim=ext_on("ext_city_shape"))
     return jsonify(ok=True, added=len(known))
 
 
@@ -1095,15 +1193,15 @@ def add_visit():
     db().commit()
     fetch_state_flags()
     if kind == "city":  # ~1-3 s na primeira vez
-        boundaries.fetch_and_store(DB, GEO_DB, ref_id, allow_nominatim=ext_on("ext_city_shape"))
+        boundaries.fetch_and_store(prof().db, GEO_DB, ref_id, allow_nominatim=ext_on("ext_city_shape"))
     return jsonify(ok=True)
 
 
 def trash_photo(row, con=None):
     for sub, ext in (("display", "jpg"), ("thumb", "jpg"), ("orig", row["original_ext"] or "jpg")):
-        src = PHOTOS / sub / f"{row['file']}.{ext}"
+        src = prof().photos / sub / f"{row['file']}.{ext}"
         if src.exists():
-            shutil.move(src, PHOTOS / "trash" / f"{row['file']}.{sub}.{ext}")
+            shutil.move(src, prof().photos / "trash" / f"{row['file']}.{sub}.{ext}")
     (con or db()).execute("DELETE FROM photos WHERE id = ?", (row["id"],))
 
 
@@ -1117,7 +1215,7 @@ def delete_landmark_rows(con, landmark_id):
 
 @app.delete("/api/visits/<kind>/<ref_id>")
 def remove_visit(kind, ref_id):
-    """Desmarca. As fotos do lugar vão para data/photos/trash (recuperáveis à mão)."""
+    """Desmarca. As fotos do lugar vão para photos/trash do perfil (recuperáveis à mão)."""
     con = db()
     for row in con.execute("SELECT * FROM photos WHERE kind = ? AND ref_id = ?", (kind, ref_id)).fetchall():
         trash_photo(row)
@@ -1159,7 +1257,7 @@ def save_photos(kind, ref_id, files, fallback_date=None):
     for f in files:
         base = uuid.uuid4().hex
         ext = (Path(f.filename or "").suffix.lstrip(".").lower() or "jpg")[:5]
-        orig = PHOTOS / "orig" / f"{base}.{ext}"
+        orig = prof().photos / "orig" / f"{base}.{ext}"
         f.save(orig)
         try:
             with Image.open(orig) as img:
@@ -1168,9 +1266,9 @@ def save_photos(kind, ref_id, files, fallback_date=None):
                 img = ImageOps.exif_transpose(img).convert("RGB")
                 full = img.copy()
                 full.thumbnail((DISPLAY_PX, DISPLAY_PX), Image.LANCZOS)
-                full.save(PHOTOS / "display" / f"{base}.jpg", "JPEG", quality=86, optimize=True)
+                full.save(prof().photos / "display" / f"{base}.jpg", "JPEG", quality=86, optimize=True)
                 img.thumbnail((THUMB_PX, THUMB_PX), Image.LANCZOS)
-                img.save(PHOTOS / "thumb" / f"{base}.jpg", "JPEG", quality=82, optimize=True)
+                img.save(prof().photos / "thumb" / f"{base}.jpg", "JPEG", quality=82, optimize=True)
         except Exception as e:  # arquivo que não é imagem, corrompido, etc.
             orig.unlink(missing_ok=True)
             errors.append(f"{f.filename}: {e}")
@@ -1196,7 +1294,7 @@ def upload_photos(kind, ref_id):
     if saved and kind in KINDS:
         fetch_state_flags()
     if saved and kind == "city":
-        boundaries.fetch_and_store(DB, GEO_DB, ref_id, allow_nominatim=ext_on("ext_city_shape"))
+        boundaries.fetch_and_store(prof().db, GEO_DB, ref_id, allow_nominatim=ext_on("ext_city_shape"))
     return jsonify(saved=saved, errors=errors), (200 if saved or not errors else 400)
 
 
@@ -1335,12 +1433,13 @@ def delete_photo(photo_id):
 def photo_file(sub, name):
     if sub not in ("display", "thumb", "orig"):
         abort(404)
-    resp = send_from_directory(PHOTOS / sub, name)
+    resp = send_from_directory(prof().photos / sub, name)
     resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
     return resp
 
 
-init_storage()
+profiles.setup()
+each_profile(init_storage)
 installer.adopt_legacy()  # instalação de antes do assistente: já está pronta
 if not installed():
     installer.resume()    # montagem interrompida (container reiniciou no meio)

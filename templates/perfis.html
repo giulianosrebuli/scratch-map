@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="{{ lang }}" data-theme="{{ prefs.theme }}">
+<head>
+  <title>{{ _('Perfis') }} · Scratch Map</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗺️</text></svg>">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/maplibre-gl.css') }}">
+{% include '_head.html' %}
+</head>
+{# "Quem está usando?" (profiles.py): tocar num perfil grava o cookie neste
+   aparelho e abre o mapa. Mesmo fundo e cartão do assistente. #}
+<body class="setup-page">
+  <div id="setup-map" aria-hidden="true"></div>
+  <main class="setup">
+   <div class="setup-card">
+    <h1>{{ _('Quem está usando?') }}</h1>
+    <ul class="people">
+      {% for p in people %}
+      <li>
+        <a class="person" href="/perfis/{{ p.id }}/usar" {{ 'aria-current=true' if p.id == chosen }}>
+          <span class="avatar">{% if p.photo %}<img src="/perfis/{{ p.id }}/foto.jpg?v={{ p.photo }}" alt="">{% else %}
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>{% endif %}</span>
+          <b>{{ p.name or _('Sem nome') }}</b>
+        </a>
+      </li>
+      {% endfor %}
+      {% if can_add %}
+      <li>
+        <form method="post" action="/perfis/novo">
+          <button class="person add">
+            <span class="avatar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span>
+            <b>{{ _('Adicionar perfil') }}</b>
+          </button>
+        </form>
+      </li>
+      {% endif %}
+    </ul>
+    <p class="hint">{{ _('Cada perfil tem suas próprias visitas, fotos e configurações. Este aparelho lembra a escolha.') }}</p>
+    {% if chosen %}<div class="setup-nav"><a class="ghost" href="/perfil">‹ {{ _('Voltar') }}</a></div>{% endif %}
+   </div>
+  </main>
+  <script src="{{ url_for('static', filename='vendor/maplibre-gl.js') }}"></script>
+  <script src="{{ url_for('static', filename='common.js') }}"></script>
+  <script src="{{ url_for('static', filename='backdrop.js') }}"></script>
+  <script>window.SM.backdrop({ instant: {{ 'true' if chosen else 'false' }} });</script>
+</body>
+</html>

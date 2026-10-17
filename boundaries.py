@@ -2,7 +2,7 @@
 
 O GeoNames só tem o ponto central da cidade. Quando uma cidade é marcada,
 calculamos o contorno uma única vez a partir dos dados locais do Overture
-(geoshapes.py, nada sai da máquina) e guardamos em data/scratch.db (tabela
+(geoshapes.py, nada sai da máquina) e guardamos no scratch.db do perfil (tabela
 city_shapes).
 
 O Nominatim (OpenStreetMap) é usado em dois casos:
@@ -150,7 +150,7 @@ def backfill(db_path, geo_db_path, allow_nominatim=True):
 
 
 _bf_lock = threading.Lock()
-_bf = {"running": False, "again": None}
+_bf = {"running": False, "queue": {}}   # banco do perfil -> argumentos
 
 
 def backfill_running():
@@ -158,26 +158,25 @@ def backfill_running():
 
 
 def start_backfill(db_path, geo_db_path, allow_nominatim=True):
-    """Um backfill por vez: pedido no meio de outro (ex.: lista de cidades
-    marcada logo depois de outra) roda de novo quando o atual terminar, em vez
-    de dois ao mesmo tempo pedirem a mesma cidade ao Nominatim."""
-    args = (db_path, geo_db_path, allow_nominatim)
+    """Um backfill por vez, numa fila só para todos os perfis: pedido no meio de
+    outro (ex.: lista de cidades marcada logo depois de outra) roda quando o
+    atual terminar, em vez de dois ao mesmo tempo pedirem ao Nominatim."""
     with _bf_lock:
+        _bf["queue"][str(db_path)] = (db_path, geo_db_path, allow_nominatim)
         if _bf["running"]:
-            _bf["again"] = args
             return
         _bf["running"] = True
 
-    def run(args):
+    def run():
         while True:
+            with _bf_lock:
+                if not _bf["queue"]:
+                    _bf["running"] = False
+                    return
+                args = _bf["queue"].pop(next(iter(_bf["queue"])))
             try:
                 backfill(*args)
             except Exception:
                 log.exception("backfill de contornos")
-            with _bf_lock:
-                if _bf["again"] is None:
-                    _bf["running"] = False
-                    return
-                args, _bf["again"] = _bf["again"], None
 
-    threading.Thread(target=run, args=(args,), daemon=True, name="city-boundaries").start()
+    threading.Thread(target=run, daemon=True, name="city-boundaries").start()

@@ -4,7 +4,7 @@ As de país vêm prontas (static/vendor/flags, flag-icons). As de estado não t�
 um pacote aberto equivalente, então, quando um país passa a ser visitado,
 pedimos ao Wikidata as bandeiras dos estados dele (ligando pelo código ISO
 3166-2, o mesmo id que o app usa, ex. BR-SP) e guardamos uma miniatura de cada
-em data/flags/<ID>.webp. Cada país é buscado uma vez (tabela
+em flags/<ID>.webp (na pasta do perfil). Cada país é buscado uma vez (tabela
 state_flags_fetched); se a rede falhar, tenta de novo da próxima vez.
 
 Sai da máquina: o código do país (na consulta ao Wikidata) e os nomes dos
@@ -98,8 +98,8 @@ def ensure(db_path, geo_db, flag_dir: Path, countries):
     with sqlite3.connect(db_path) as con:
         done = {r[0] for r in con.execute("SELECT country_id FROM state_flags_fetched")}
     with _lock:
-        todo = [c for c in countries if c and c not in done and c not in _running]
-        _running.update(todo)
+        todo = [c for c in countries if c and c not in done and (str(db_path), c) not in _running]
+        _running.update((str(db_path), c) for c in todo)
     if not todo:
         return
 
@@ -112,6 +112,6 @@ def ensure(db_path, geo_db, flag_dir: Path, countries):
                 log.warning("bandeiras de estado de %s falharam: %s", c, e)
             finally:
                 with _lock:
-                    _running.discard(c)
+                    _running.discard((str(db_path), c))
 
     threading.Thread(target=run, name="state-flags", daemon=True).start()
