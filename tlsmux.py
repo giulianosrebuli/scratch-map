@@ -84,11 +84,14 @@ class Mux:
         except OSError:
             writer.close()  # gunicorn reiniciando: o navegador tenta de novo
             return
-        await asyncio.wait([asyncio.ensure_future(self.pipe(reader, b_writer)),
-                            asyncio.ensure_future(self.pipe(b_reader, writer))],
-                           return_when=asyncio.FIRST_COMPLETED)
-        for w in (writer, b_writer):
-            w.close()
+        pipes = [asyncio.create_task(self.pipe(reader, b_writer)), asyncio.create_task(self.pipe(b_reader, writer))]
+        try:
+            await asyncio.wait(pipes, return_when=asyncio.FIRST_COMPLETED)
+        finally:
+            for t in pipes:
+                t.cancel()
+            for w in (writer, b_writer):
+                w.close()
 
     @staticmethod
     async def pipe(src, dst):
@@ -109,10 +112,13 @@ async def serve(listen, mux):
     srv.listen(256)
     srv.setblocking(False)
     log.info("escutando %s:%s (HTTP e HTTPS) -> %s:%s", *listen, *mux.backend)
+    tasks = set()  # o asyncio só guarda referência fraca: sem isto, conexão some no meio
     while True:
         sock, _ = await loop.sock_accept(srv)
         sock.setblocking(False)
-        asyncio.ensure_future(mux.handle(sock))
+        task = asyncio.create_task(mux.handle(sock))
+        tasks.add(task)
+        task.add_done_callback(tasks.discard)
 
 
 if __name__ == "__main__":
