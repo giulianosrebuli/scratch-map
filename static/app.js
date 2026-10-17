@@ -73,6 +73,9 @@
   const ADMIN = (layer) => ({ source: 'admin', 'source-layer': layer });
   const FID = ['coalesce', ['get', 'id'], ['get', 'oid']];
   const fid = (f) => String(f.properties.id ?? f.properties.oid);
+  // nomes de país e estado no idioma da interface (os das tiles são os da montagem)
+  const NAMES = { country: {}, state: {} };
+  api('/api/names').then((r) => Object.assign(NAMES, r)).catch(() => {});
 
   // bbox de um contorno de cidade, só com as partes a menos de 1° da principal:
   // Vitória inclui a ilha da Trindade, a 1.100 km.
@@ -309,7 +312,10 @@
       if (layer === 'state-hit' && (!BORDERS.borders_state || z < 2.5)) continue;
       const q = layer === 'cities' || layer === 'airports' || layer === 'landmarks' ? box : point;
       const f = map.queryRenderedFeatures(q, { layers: [layer] })[0];
-      if (f) return { kind, id: kind === 'state' || kind === 'country' ? fid(f) : f.properties.id, name: f.properties.name };
+      if (!f) continue;
+      if (kind !== 'state' && kind !== 'country') return { kind, id: f.properties.id, name: f.properties.name };
+      const id = fid(f);
+      return { kind, id, name: NAMES[kind][id] || f.properties.name };
     }
     return null;
   }
