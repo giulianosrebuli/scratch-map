@@ -1,0 +1,12 @@
+venv/
+__pycache__/
+*.pyc
+data/
+geodata/
+static/geo/
+deploy/
+Dockerfile
+docker-compose.yml
+.dockerignore
+.git/
+LOCAL.md

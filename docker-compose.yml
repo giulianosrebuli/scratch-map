@@ -1,0 +1,16 @@
+# Scratch Map: http://<máquina>:5020 (a primeira visita abre o assistente).
+# Sem login, de propósito: não exponha a porta para a internet (LAN ou VPN).
+services:
+  scratch-map:
+    build: .
+    image: scratch-map
+    ports:
+      - "5020:5020"
+    volumes:
+      - data:/data          # seus dados: faça backup (Configurações → Backup)
+      - geodata:/geodata    # dados do mapa (remontáveis)
+    restart: unless-stopped
+
+volumes:
+  data:
+  geodata:

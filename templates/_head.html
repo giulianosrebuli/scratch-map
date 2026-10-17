@@ -1,0 +1,8 @@
+{# Comum ao <head> de todas as páginas: viewport, CSS e as preferências de
+   aparência (cores do mapa escolhidas na configuração; o tema vai no <html>). #}
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+  {% if prefs.colors %}<style id="user-colors">:root { {% for k, v in prefs.colors.items() %}--{{ k }}: {{ v }}; {% endfor %}}</style>{% endif %}
+  {# idioma da interface: SM.t() (static/common.js) traduz com esta tabela (i18n.py) #}
+  <script>window.LANG = {{ lang | tojson }}; window.I18N = {{ i18n_table | tojson }};</script>

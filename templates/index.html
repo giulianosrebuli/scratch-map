@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="{{ lang }}" data-theme="{{ prefs.theme }}">
+<head>
+  <title>Scratch Map</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗺️</text></svg>">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/maplibre-gl.css') }}">
+{% include '_head.html' %}
+</head>
+<body class="map-page">
+  <header class="topbar">
+    <h1>scratch map</h1>
+    <nav class="toggles" id="toggles" aria-label="{{ _('Camadas do mapa') }}">
+      <button data-kind="country" aria-pressed="true"><i class="dot country"></i><span>{{ _('Países') }}</span> <b data-count="country">0</b></button>
+      <button data-kind="state" aria-pressed="true"><i class="dot state"></i><span>{{ _('Estados') }}</span> <b data-count="state">0</b></button>
+      <button data-kind="city" aria-pressed="true"><i class="dot city"></i><span>{{ _('Cidades') }}</span> <b data-count="city">0</b></button>
+      <button data-kind="airport" aria-pressed="true"><i class="dot airport"></i><span data-short="{{ _('Aerop.') }}">{{ _('Aeroportos') }}</span> <b data-count="airport">0</b></button>
+      <button data-kind="landmark" aria-pressed="true"><i class="dot landmark"></i><span>{{ _('Monumentos') }}</span> <b data-count="landmark">0</b></button>
+    </nav>
+  </header>
+
+  <main>
+    <div id="map"></div>
+  </main>
+
+  {% with page = 'map' %}{% include '_navbar.html' %}{% endwith %}
+
+  {# gaveta: adicionar, lugar, formulário do monumento (static/app.js) #}
+  <div id="scrim"></div>
+  {# durante a cena de marcar (raspagem): tocar pula #}
+  <div id="skip" hidden><span class="glass">{{ _('Toque para pular') }}</span></div>
+  <section id="sheet" aria-label="{{ _('Gaveta') }}">
+    <div class="grip" id="grip" role="button" aria-label="{{ _('Arrastar para fechar') }}"><span></span></div>
+    <div id="sheet-body"></div>
+  </section>
+
+  <div id="lightbox" hidden></div>
+  <div id="tooltip" hidden></div>
+  <div id="toast" role="status" hidden></div>
+
+  <script>window.GEO_V = {{ geo_v }}; window.SETTINGS = {{ settings | tojson }}; window.PREFS = {{ prefs | tojson }};</script>
+  <script src="{{ url_for('static', filename='vendor/maplibre-gl.js') }}"></script>
+  <script src="{{ url_for('static', filename='vendor/pmtiles.js') }}"></script>
+  <script src="{{ url_for('static', filename='common.js') }}"></script>
+  <script src="{{ url_for('static', filename='citypicker.js') }}"></script>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

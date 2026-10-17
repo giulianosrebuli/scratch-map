@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="{{ lang }}" data-theme="{{ prefs.theme }}">
+<head>
+  <title>{{ _('Mural') }} · Scratch Map</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🖼️</text></svg>">
+{% include '_head.html' %}
+</head>
+<body class="mural-page">
+  <header class="topbar">
+    <h1>{{ _('mural') }}</h1>
+    <span class="mural-count" id="count"></span>
+    <nav class="seg" id="order" aria-label="{{ _('Ordem das fotos') }}">
+      <button data-order="time">{{ _('Linha do tempo') }}</button>
+      <button data-order="place">{{ _('Por localidade') }}</button>
+    </nav>
+    {# sentido da linha do tempo (some em "por localidade") #}
+    <button class="ghost dir-btn" id="dir" aria-label="{{ _('Inverter a ordem') }}"></button>
+  </header>
+
+  <main id="wall" class="table"></main>
+
+  {% with page = 'mural' %}{% include '_navbar.html' %}{% endwith %}
+
+  <div id="lightbox" hidden></div>
+
+  <script src="{{ url_for('static', filename='common.js') }}"></script>
+  <script src="{{ url_for('static', filename='mural.js') }}"></script>
+</body>
+</html>

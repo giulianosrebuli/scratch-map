@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="{{ lang }}" data-theme="{{ prefs.theme }}">
+<head>
+  <title>{{ _('Bem-vindo') }} · Scratch Map</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗺️</text></svg>">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/maplibre-gl.css') }}">
+{% include '_head.html' %}
+</head>
+{# Assistente de primeira execução (installer.py). Ao fundo, um mapa-múndi
+   leve (os dados do mapa ainda não existem) girando devagar e desfocado; na
+   frente, um cartão com um passo por vez. O JS (static/setup.js) troca o passo
+   e grava cada escolha na hora. #}
+<body class="setup-page">
+  <div id="setup-map" aria-hidden="true"></div>
+  <main class="setup">
+   <div class="setup-card" id="card">
+    <ol class="setup-dots" id="dots" aria-hidden="true">
+      <li data-for="profile"></li><li data-for="view"></li><li data-for="data"></li>
+    </ol>
+
+    <section class="setup-step" data-step="welcome">
+      {# idioma primeiro: trocar recarrega a página já traduzida #}
+      <label class="lang-select setup-lang">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3z"/></svg>
+        <select id="language" aria-label="{{ _('Idioma') }}">{% for code, name in languages.items() %}<option value="{{ code }}" {{ 'selected' if code == lang }}>{{ name }}</option>{% endfor %}</select>
+      </label>
+      <h1>{{ _('Bem-vindo ao Scratch Map') }}</h1>
+      <p class="lead">{{ _('Seu mapa de raspar: marque os países, estados e cidades por onde passou e guarde as fotos de cada lugar. Tudo fica nesta máquina.') }}</p>
+      <div class="setup-actions">
+        <button class="btn" data-go="profile">{{ _('Começar do zero') }}</button>
+        <button class="btn secondary" id="restore-btn">{{ _('Restaurar um backup') }}</button>
+        <input type="file" id="restore-file" accept=".zip,application/zip" hidden>
+      </div>
+      <p class="hint">{{ _('Tem um backup (.zip) de outra instalação? Ele traz as visitas, as fotos e as configurações.') }}</p>
+    </section>
+
+    <section class="setup-step" data-step="profile" hidden>
+      <h2>{{ _('Quem é você?') }}</h2>
+      <div class="config-card">
+        <div class="profile">
+          <button class="avatar" id="avatar" title="{{ _('Escolher foto') }}" aria-label="{{ _('Escolher foto de perfil') }}">
+            {% if prefs.photo %}<img src="/profile.jpg?v={{ prefs.photo }}" alt="">
+            {% else %}<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>{% endif %}
+          </button>
+          <input type="file" id="avatar-file" accept="image/*" hidden>
+          <div class="profile-text">
+            <input class="profile-name" id="profile-name" value="{{ prefs.name }}" placeholder="{{ _('Seu nome') }}" maxlength="80" autocomplete="name">
+            <small>{{ _('Toque na foto para escolher uma. Os dois são opcionais.') }}</small>
+          </div>
+        </div>
+      </div>
+      <div class="setup-nav">
+        <button class="ghost" data-go="welcome">‹ {{ _('Voltar') }}</button>
+        <button class="btn" data-go="view">{{ _('Continuar') }}</button>
+      </div>
+    </section>
+
+    <section class="setup-step" data-step="view" hidden>
+      <h2>{{ _('Ao abrir o mapa, mostrar…') }}</h2>
+      {% set view = settings.start_view if settings.start_view in ('all', 'last') else 'all' %}
+      <div class="config-card">
+        <div class="choices">
+          <label class="choice">
+            <input type="radio" name="start" value="all" {{ 'checked' if view == 'all' }}>
+            <span><b>{{ _('Todas as cidades visitadas') }}</b><small>{{ _('Enquadra todas, em qualquer país (o mundo inteiro, enquanto não houver nenhuma).') }}</small></span>
+          </label>
+          <label class="choice">
+            <input type="radio" name="start" value="last" {{ 'checked' if view == 'last' }}>
+            <span><b>{{ _('Onde parei') }}</b><small>{{ _('Abre onde o mapa estava da última vez (em cada aparelho).') }}</small></span>
+          </label>
+        </div>
+      </div>
+      <p class="hint">{{ _('"Cidades de um país" e "posição fixa" ficam em Configurações, depois que o mapa estiver pronto.') }}</p>
+      <div class="setup-nav">
+        <button class="ghost" data-go="profile">‹ {{ _('Voltar') }}</button>
+        <button class="btn" data-go="data">{{ _('Continuar') }}</button>
+      </div>
+    </section>
+
+    <section class="setup-step" data-step="data" hidden>
+      <h2>{{ _('Dados do mapa') }}</h2>
+      <p class="lead small">{{ _('O mapa é montado aqui, uma vez, a partir de dados abertos (Overture Maps, GeoNames, OurAirports e o litoral do OpenStreetMap).') }}</p>
+      <div class="mode-cards">
+        <label class="mode-card">
+          <input type="radio" name="mode" value="leve" checked>
+          <span class="mode-body">
+            <b>{{ _('Leve') }} <em>{{ _('~1,9 GB') }}</em></b>
+            <span>{{ _('Ao marcar uma cidade, o app consulta o Nominatim (OpenStreetMap): precisa de internet nessa hora. Sem conexão, a cidade fica como um pin até a próxima tentativa.') }}</span>
+            <small class="privacy">{{ _('Sai da máquina, uma vez por cidade marcada: o nome dela, o país e as coordenadas. Dá para desligar em Configurações.') }}</small>
+          </span>
+        </label>
+        <label class="mode-card">
+          <input type="radio" name="mode" value="completo">
+          <span class="mode-body">
+            <b>{{ _('Completo') }} <em>{{ _('~6,3 GB') }}</em></b>
+            <span>{{ _('Tudo local: marcar uma cidade funciona sem internet e não faz nenhum pedido para fora.') }}</span>
+            <small class="privacy">{{ _('Guarda as áreas de todas as cidades do mundo (~4,5 GB a mais).') }}</small>
+          </span>
+        </label>
+      </div>
+      <div class="config-card needs">
+        <p class="group-title">{{ _('Para montar') }}</p>
+        <ul>
+          <li><b>{{ _('Tempo:') }}</b> {{ _('cerca de 1h a 1h30. Dá para fechar a página; a montagem continua no servidor.') }}</li>
+          <li><b>{{ _('Memória:') }}</b> {{ _('~8 GB de RAM durante a montagem.') }}</li>
+          <li><b>{{ _('Disco livre:') }}</b> <span id="disk-need">~13 GB</span> {{ _('durante a montagem (os temporários são apagados no fim).') }}</li>
+          <li><b>{{ _('Pedidos para fora:') }}</b> {{ _('só os downloads das fontes acima; nada sobre você.') }}</li>
+        </ul>
+      </div>
+      <div class="setup-nav">
+        <button class="ghost" data-go="view">‹ {{ _('Voltar') }}</button>
+        <button class="btn" id="start">{{ _('Montar o mapa') }}</button>
+      </div>
+    </section>
+
+    <section class="setup-step" data-step="build" hidden>
+      <h2 id="build-title">{{ _('Montando o mapa') }}</h2>
+      <p class="lead small" id="build-lead">{{ _('Pode fechar esta página: a montagem continua no servidor. Volte quando quiser.') }}</p>
+      {% if state.simulate %}<p class="sim-badge">{{ _('Simulação (teste): as etapas copiam arquivos prontos.') }}</p>{% endif %}
+      <ol class="build-steps" id="build-steps">
+        <li data-step="download"><b>{{ _('Baixar os dados') }}</b><small>{{ _('Overture Maps, GeoNames, OurAirports e o litoral do OSM') }}</small></li>
+        <li data-step="clip"><b>{{ _('Recortar países e estados pelo litoral') }}</b><small>~30 min</small></li>
+        <li data-step="tiles"><b>{{ _('Desenhar o mapa') }}</b><small>~45 min</small></li>
+        <li data-step="db"><b>{{ _('Montar a busca') }}</b><small>{{ _('países, estados, cidades e aeroportos') }}</small></li>
+        <li data-step="cleanup"><b>{{ _('Apagar os temporários') }}</b><small></small></li>
+      </ol>
+      <p class="build-msg" id="build-msg"></p>
+      <div class="build-error" id="build-error" hidden>
+        <b>{{ _('A montagem parou com um erro.') }}</b>
+        <code id="build-error-text"></code>
+        <small>{{ _('O que já foi feito fica; tentar de novo continua de onde parou. Detalhes em') }}
+          <code>geodata/build.log</code>.</small>
+        <button class="btn" id="retry">{{ _('Tentar de novo') }}</button>
+      </div>
+      <div class="setup-actions" id="build-done" hidden>
+        <button class="btn" data-go="cities">{{ _('Marcar as cidades que você já conhece') }}</button>
+        <a class="btn secondary" href="/">{{ _('Abrir o mapa') }}</a>
+      </div>
+    </section>
+
+    <section class="setup-step" data-step="cities" hidden>
+      <h2>{{ _('Onde você já esteve?') }}</h2>
+      <p class="lead small">{{ _('Escolha o país e toque nas cidades. Dá para trocar de país (ou de estado) e continuar escolhendo; o estado e o país entram junto.') }}</p>
+      <div id="picker"></div>
+      <div class="setup-nav">
+        <a class="ghost" href="/">{{ _('Agora não') }}</a>
+      </div>
+    </section>
+   </div>
+  </main>
+
+  <div id="toast" role="status" hidden></div>
+  <script>window.SETUP = {{ {'state': state, 'counts': counts} | tojson }};</script>
+  <script src="{{ url_for('static', filename='vendor/maplibre-gl.js') }}"></script>
+  <script src="{{ url_for('static', filename='common.js') }}"></script>
+  <script src="{{ url_for('static', filename='citypicker.js') }}"></script>
+  <script src="{{ url_for('static', filename='setup.js') }}"></script>
+</body>
+</html>

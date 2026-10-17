@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="{{ lang }}" data-theme="{{ prefs.theme }}">
+<head>
+  <title>{{ _('Perfil') }} · Scratch Map</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👤</text></svg>">
+{% include '_head.html' %}
+</head>
+<body class="stats-page">
+  <main class="stats-main">
+    <div class="stats-col">
+      {# nome e foto: editáveis aqui mesmo (static/profile.js) #}
+      <section class="profile">
+        <button class="avatar" id="avatar" title="{{ _('Trocar foto') }}" aria-label="{{ _('Trocar foto de perfil') }}">
+          {% if prefs.photo %}<img src="/profile.jpg?v={{ prefs.photo }}" alt="">{% else %}
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>{% endif %}
+        </button>
+        <input type="file" id="avatar-file" accept="image/*,.heic,.heif" hidden>
+        <div class="profile-text">
+          <input class="profile-name" id="profile-name" value="{{ prefs.name }}" placeholder="{{ _('Seu nome') }}" maxlength="80" autocomplete="off" aria-label="{{ _('Nome') }}">
+          <small id="profile-hint">{{ _('Toque na foto para trocar') }}</small>
+        </div>
+        <a class="gear" href="/config" title="{{ _('Configurações') }}" aria-label="{{ _('Configurações') }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></a>
+      </section>
+      <div class="album-col" id="visited"></div>
+    </div>
+  </main>
+
+  {% with page = 'perfil' %}{% include '_navbar.html' %}{% endwith %}
+
+  <div id="toast" role="status" hidden></div>
+  <script src="{{ url_for('static', filename='common.js') }}"></script>
+  <script src="{{ url_for('static', filename='profile.js') }}"></script>
+  <script src="{{ url_for('static', filename='stats.js') }}"></script>
+</body>
+</html>

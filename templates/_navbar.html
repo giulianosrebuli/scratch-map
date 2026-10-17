@@ -1,0 +1,25 @@
+{# Barra de menu na base (estilo liquid glass), comum a todas as telas:
+   Mapa, Mural, Perfil e o +, centralizados. As configurações ficam dentro do
+   Perfil (engrenagem no cabeçalho). `page` = map | mural | perfil | config. #}
+<nav class="navbar" aria-label="{{ _('Telas') }}">
+  <div class="nav-group">
+    <div class="nav-tabs glass">
+      <a href="/" {% if page == 'map' %}aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5L9 4z"/><path d="M9 4v13.5M15 6.5V20"/></svg>
+        <span>{{ _('Mapa') }}</span>
+      </a>
+      <a href="/mural" {% if page == 'mural' %}aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="14" height="14" rx="1.5"/><path d="M7 3h12.5A1.5 1.5 0 0 1 21 4.5V17"/><path d="m3 16 4-4 4 4 2-2 4 4"/></svg>
+        <span>{{ _('Mural') }}</span>
+      </a>
+      <a href="/perfil" {% if page in ('perfil', 'config') %}aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+        <span>{{ _('Perfil') }}</span>
+      </a>
+    </div>
+    {# adicionar: no mapa abre a gaveta; nas outras telas leva ao mapa com ela aberta #}
+    <a class="nav-round glass" id="nav-add" href="/?add" title="{{ _('Adicionar') }}" aria-label="{{ _('Adicionar') }}">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+    </a>
+  </div>
+</nav>

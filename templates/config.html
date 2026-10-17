@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="{{ lang }}" data-theme="{{ prefs.theme }}">
+<head>
+  <title>{{ _('Configurações') }} · Scratch Map</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚙️</text></svg>">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/maplibre-gl.css') }}">
+{% include '_head.html' %}
+</head>
+<body class="stats-page" data-projection="{{ prefs.projection }}">
+  <header class="topbar">
+    <a class="ghost" href="/perfil" title="{{ _('Voltar ao perfil') }}">‹ {{ _('Perfil') }}</a>
+    <h1>{{ _('configurações') }}</h1>
+  </header>
+
+  <main class="stats-main">
+    <div class="stats-col config">
+      <h2 class="config-title">{{ _('Aparência') }}</h2>
+
+      <section class="config-card">
+        <div class="config-row">
+          <span>{{ _('Idioma') }}</span>
+          <label class="lang-select">
+            <select id="language" aria-label="{{ _('Idioma') }}">{% for code, name in languages.items() %}<option value="{{ code }}" {{ 'selected' if code == lang }}>{{ name }}</option>{% endfor %}</select>
+          </label>
+        </div>
+        <div class="config-row">
+          <span>{{ _('Tema') }}</span>
+          <nav class="seg" id="theme" aria-label="{{ _('Tema') }}">
+            <button data-theme="light">{{ _('Claro') }}</button>
+            <button data-theme="dark">{{ _('Escuro') }}</button>
+            <button data-theme="auto">{{ _('Automático') }}</button>
+          </nav>
+        </div>
+      </section>
+
+      <section class="config-card">
+        <p class="group-title">{{ _('Cores do mapa') }}</p>
+        {# prévia: um pedaço de mapa desenhado com as mesmas variáveis de cor #}
+        <svg class="map-preview" viewBox="0 0 320 120" aria-hidden="true">
+          <rect width="320" height="120" fill="var(--water)"/>
+          <path d="M0 0h250c-10 20 8 34-6 52-16 20-4 40-24 68H0z" fill="var(--land)"/>
+          <path d="M0 0h170c-8 16 10 30-4 46-12 14 0 30-16 44H0z" fill="var(--country)" stroke="var(--border)"/>
+          <path d="M60 30h80c-6 14 6 26-6 38-10 10-2 22-14 30H60z" fill="var(--state)" stroke="var(--border)"/>
+          <path d="M92 52c10-6 26-4 30 6 4 10-4 20-16 20s-22-6-22-14c0-6 2-10 8-12z" fill="var(--city)"/>
+          <g transform="translate(196 70) scale(1.1)"><path fill="var(--airport)" stroke="#fff" stroke-width="1.4" d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></g>
+          <g transform="translate(30 66) scale(1.2)"><path fill="var(--landmark)" stroke="#fff" stroke-width="1.4" fill-rule="evenodd" d="M12 1.5a8 8 0 0 0-8 8c0 5.6 6.4 11.6 7.4 12.5a.9.9 0 0 0 1.2 0c1-.9 7.4-6.9 7.4-12.5a8 8 0 0 0-8-8zm0 5a3 3 0 1 1 0 6 3 3 0 0 1 0-6z"/></g>
+        </svg>
+        <ul class="color-list" id="colors">
+          {% set labels = {'water': _('Água'), 'land': _('Terra (não visitada)'), 'country': _('País'), 'state': _('Estado'), 'city': _('Cidade'), 'airport': _('Aeroporto'), 'landmark': _('Monumento')} %}
+          {% for k, default in map_colors.items() %}
+          <li>
+            <label>
+              <input type="color" data-key="{{ k }}" data-default="{{ default }}" value="{{ prefs.colors.get(k, default) }}">
+              <span>{{ labels[k] }}</span>
+            </label>
+            <code>{{ prefs.colors.get(k, default) }}</code>
+          </li>
+          {% endfor %}
+        </ul>
+        <button class="btn secondary" id="reset-colors">{{ _('Restaurar cores padrão') }}</button>
+      </section>
+
+      <h2 class="config-title">{{ _('Mapa') }}</h2>
+
+      <section class="config-card">
+        <div class="config-row">
+          <span>{{ _('Formato') }}</span>
+          <nav class="seg" id="projection" aria-label="{{ _('Formato do mapa') }}">
+            <button data-projection="mercator">{{ _('Plano') }}</button>
+            <button data-projection="globe">{{ _('Globo') }}</button>
+          </nav>
+        </div>
+      </section>
+
+      <section class="config-card">
+        <p class="group-title">{{ _('Bordas') }}</p>
+        <ul class="switches" id="borders">
+          {% set labels = {'borders_country': (_('Países'), _('A linha entre os países.')),
+                           'borders_state': (_('Estados'), _('Aparece ao aproximar o mapa.')),
+                           'borders_city': (_('Cidades'), _('Em volta das cidades visitadas.'))} %}
+          {% for key, (title, sub) in labels.items() %}
+          <li>
+            <label class="switch-row">
+              <span><b>{{ title }}</b><small>{{ sub }}</small></span>
+              <input type="checkbox" class="switch" data-key="{{ key }}" {{ 'checked' if prefs.borders[key] }}>
+            </label>
+          </li>
+          {% endfor %}
+        </ul>
+      </section>
+
+      <section class="config-card">
+        <p class="group-title">{{ _('Vista inicial') }}</p>
+        {# sem start_view: o comportamento antigo (país "de casa" se houver, senão todas) #}
+        {% set mode = settings.start_view or ('country' if settings.home_country else 'all') %}
+        <div class="choices" id="start-view">
+          <label class="choice">
+            <input type="radio" name="start" value="country" {{ 'checked' if mode == 'country' }}>
+            <span>
+              <b>{{ _('Cidades visitadas em') }}
+                <select id="home-country" aria-label="{{ _('País') }}">
+                  {% for c in countries %}<option value="{{ c.id }}" {{ 'selected' if c.id == settings.home_country }}>{{ c.name }}</option>{% endfor %}
+                </select>
+              </b>
+              <small>{{ _('Enquadra as cidades que você conhece nesse país.') }}</small>
+            </span>
+          </label>
+          <label class="choice">
+            <input type="radio" name="start" value="all" {{ 'checked' if mode == 'all' }}>
+            <span><b>{{ _('Todas as cidades visitadas') }}</b><small>{{ _('Enquadra todas, em qualquer país.') }}</small></span>
+          </label>
+          <label class="choice">
+            <input type="radio" name="start" value="last" {{ 'checked' if mode == 'last' }}>
+            <span><b>{{ _('Onde parei') }}</b><small>{{ _('Abre onde o mapa estava da última vez (em cada aparelho).') }}</small></span>
+          </label>
+          <label class="choice">
+            <input type="radio" name="start" value="fixed" {{ 'checked' if mode == 'fixed' }}>
+            <span><b>{{ _('Posição fixa') }}</b><small>{{ _('Arraste e dê zoom no mapa abaixo: o centro e o zoom dele viram a vista inicial.') }}</small></span>
+          </label>
+        </div>
+        <div id="fixed-map" class="mini-map" hidden data-view="{{ settings.start_fixed or '' }}"></div>
+      </section>
+
+      <h2 class="config-title">{{ _('Dados e privacidade') }}</h2>
+
+      <section class="config-card">
+        <div class="config-row">
+          <span>{{ _('Dados do mapa') }}</span>
+          <span class="hint">{{ _('Leve') if geodata.mode == 'leve' else _('Completo') }}{% if geodata.release %} · Overture {{ geodata.release }}{% endif %}</span>
+        </div>
+        <p class="hint">{{ _('Mapa, visitas e fotos ficam só nesta máquina. As exceções são estes pedidos a serviços abertos, cada um com o mínimo necessário. Desligado, o pedido não acontece.') }}</p>
+        {% set ext = prefs.external %}
+        <ul class="switches" id="external">
+          <li>
+            <label class="switch-row">
+              <span>
+                <b>{{ _('Sugestão de nome do monumento') }}</b>
+                <small>{{ _('Nominatim (OpenStreetMap) recebe as coordenadas do monumento novo. Desligado: o formulário só não sugere o nome.') }}</small>
+              </span>
+              <input type="checkbox" class="switch" data-key="ext_landmark_name" {{ 'checked' if ext.ext_landmark_name }}>
+            </label>
+          </li>
+          <li>
+            <label class="switch-row">
+              <span>
+                {% if geodata.mode == 'leve' %}
+                <b>{{ _('Contorno de cidade') }}</b>
+                <small>{{ _('No modo Leve, o contorno de cada cidade marcada vem do Nominatim, que recebe o nome da cidade, o país e as coordenadas (uma vez por cidade). Desligado: a cidade fica com um pin até religar.') }}</small>
+                {% else %}
+                <b>{{ _('Contorno de cidade (exceção)') }}</b>
+                <small>{{ _('Quando a área da cidade nos dados locais está errada (hoje, só Brasília), o Nominatim recebe o nome da cidade, o país e as coordenadas. Desligado: a cidade fica com um pin até religar.') }}</small>
+                {% endif %}
+              </span>
+              <input type="checkbox" class="switch" data-key="ext_city_shape" {{ 'checked' if ext.ext_city_shape }}>
+            </label>
+          </li>
+          <li>
+            <label class="switch-row">
+              <span>
+                <b>{{ _('Bandeiras de estado') }}</b>
+                <small>{{ _('Wikidata e Wikimedia Commons recebem o código do país visitado e os nomes dos arquivos das bandeiras. Desligado: as já baixadas continuam; novas não vêm.') }}</small>
+              </span>
+              <input type="checkbox" class="switch" data-key="ext_state_flags" {{ 'checked' if ext.ext_state_flags }}>
+            </label>
+            <button class="btn secondary small" id="refetch-flags" {{ 'disabled' if not ext.ext_state_flags }}>{{ _('Buscar bandeiras de novo') }}</button>
+          </li>
+        </ul>
+      </section>
+
+      <h2 class="config-title">{{ _('Backup') }}</h2>
+
+      <section class="config-card" id="backup">
+        <p class="hint">{{ _('Um arquivo .zip com tudo o que é seu: visitas, monumentos, configurações e fotos (as originais). Guarde fora desta máquina.') }}</p>
+        <p class="backup-info" id="backup-info">…</p>
+        <a class="btn" id="backup-download" href="/api/backup" download>{{ _('Baixar backup') }}</a>
+        <div class="backup-restore">
+          <b>{{ _('Restaurar') }}</b>
+          <small>{{ _('Troca tudo pelo conteúdo de um backup. Antes, uma cópia do estado atual é guardada no servidor') }} (<code>data/backups/</code>).</small>
+          <button class="btn secondary small" id="restore-btn">{{ _('Escolher arquivo…') }}</button>
+          <input type="file" id="restore-file" accept=".zip,application/zip" hidden>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  {% with page = 'config' %}{% include '_navbar.html' %}{% endwith %}
+
+  <div id="toast" role="status" hidden></div>
+  <script>window.GEO_V = {{ geo_v }};</script>
+  <script src="{{ url_for('static', filename='vendor/maplibre-gl.js') }}"></script>
+  <script src="{{ url_for('static', filename='vendor/pmtiles.js') }}"></script>
+  <script src="{{ url_for('static', filename='common.js') }}"></script>
+  <script src="{{ url_for('static', filename='config.js') }}"></script>
+</body>
+</html>
