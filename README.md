@@ -19,8 +19,10 @@ systemd de usuário. Acesso pela rede de casa ou por VPN (ex.: Tailscale).
 - **Idioma**: português ou inglês, escolhido no primeiro cartão do assistente
   (antes de "Começar do zero") e trocável em Configurações → Aparência. Os
   textos ficam em `i18n/<idioma>.json`, com o português como chave (veja
-  `i18n.py`); sem tradução, aparece o português. Nomes de lugares (países,
-  estados, cidades) vêm dos dados do mapa e não mudam com o idioma.
+  `i18n.py`); sem tradução, aparece o português. Países seguem o idioma
+  (Alemanha / Germany); estados e cidades ficam com o nome de lá (Bayern,
+  München), ou em inglês quando ele não é escrito em alfabeto latino (東京都 →
+  Tokyo). A busca acha por qualquer um dos nomes (baviera, bavaria, bayern).
 - **Bordas**: em Configurações → Mapa, liga/desliga a linha branca entre
   países, entre estados e em volta das cidades visitadas (esta, desligada por
   padrão).
@@ -478,6 +480,7 @@ saem junto quando você desmarca um lugar. Para limpar, apague a pasta à mão.
 | GET | `/api/backup` | baixa o backup (.zip) |
 | GET | `/api/backup/info` | contagens, tamanho e data do último backup |
 | GET | `/api/countries` | países (para a lista de cidades) e o mais visitado |
+| GET | `/api/names` | nome de cada país (no idioma) e estado, para o hover do mapa |
 | GET | `/api/cities` | `?country=&state=&q=&offset=`: cidades, maiores primeiro, 50 por vez (e os estados do país na 1ª página) |
 | POST | `/api/visits/batch` | `{ids: [...]}`: marca várias cidades; contornos em segundo plano |
 | POST | `/api/restore` | restaura de um backup (multipart `backup`); guarda o estado atual antes |

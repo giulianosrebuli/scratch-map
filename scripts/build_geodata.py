@@ -246,7 +246,7 @@ def clip():
             if res:
                 layer, div, props, gj = res
                 props["oid"] = div
-                props["name"] = names.get(div, "")
+                props["name"] = admin_label(layer, names.get(div))[0] or ""
                 outs[layer].write(f'{{"type":"Feature","properties":{json.dumps(props)},"geometry":{gj}}}\n')
             if n % 250 == 0:
                 log(f"recorte: {n}/{len(ids)}")
@@ -256,10 +256,28 @@ def clip():
 
 
 def admin_names():
-    """division_id -> nome em português (ou inglês, ou o local)."""
+    """division_id -> (português, inglês, original)."""
     con = duck()
-    return {d: pt or en or name for d, name, pt, en in con.sql(
+    return {d: (pt, en, name) for d, name, pt, en in con.sql(
         f"SELECT division_id, name, name_pt, name_en FROM '{WORK}/names.parquet'").fetchall()}
+
+
+def latin(s):
+    return all(not ch.isalpha() or unicodedata.name(ch, "").startswith("LATIN") for ch in s)
+
+
+def admin_label(layer, names):
+    """Nomes de um país ou estado: (name, name_en, search). País no idioma da
+    interface (Alemanha / Germany); estado com o nome de lá (Bayern), como as
+    cidades, ou em inglês quando o de lá não é em alfabeto latino (東京都 → Tokyo)."""
+    pt, en, orig = names or (None, None, None)
+    if layer == "countries":
+        name, name_en = pt or en or orig, en or orig or pt
+    else:
+        name = orig if orig and latin(orig) else en or pt or orig
+        name_en = None
+    search = " ".join(dict.fromkeys(norm(x) for x in (name, pt, en, orig) if x))  # acha por qualquer um
+    return name, name_en, search
 
 
 def features(path):
@@ -360,8 +378,11 @@ def build_db():
     countries = load_admin("countries")
     states = load_admin("states")
     names = admin_names()
-    for p, _, _ in countries + states:
-        p["name"] = names.get(p["oid"]) or p.get("name") or p["id"]
+    for layer, rows in (("countries", countries), ("states", states)):
+        for p, _, _ in rows:
+            name, p["name_en"], p["search"] = admin_label(layer, names.get(p["oid"]))
+            p["name"] = name or p.get("name") or p["id"]
+            p["search"] = p["search"] or norm(p["name"])
     log("db: contornos carregados")
     country_ids = {p["id"] for p, _, _ in countries}
     country_loc = Locator([(p["id"], None, g) for p, g, _ in countries])
@@ -372,7 +393,7 @@ def build_db():
     db = sqlite3.connect(tmp)
     db.executescript("""
         CREATE TABLE countries (id TEXT PRIMARY KEY, name TEXT, search TEXT,
-                                x0 REAL, y0 REAL, x1 REAL, y1 REAL);
+                                x0 REAL, y0 REAL, x1 REAL, y1 REAL, name_en TEXT);
         CREATE TABLE states (id TEXT PRIMARY KEY, name TEXT, country_id TEXT, search TEXT,
                              x0 REAL, y0 REAL, x1 REAL, y1 REAL);
         CREATE TABLE cities (id INTEGER PRIMARY KEY, name TEXT, region TEXT, country_id TEXT,
@@ -380,10 +401,10 @@ def build_db():
         CREATE TABLE airports (id TEXT PRIMARY KEY, name TEXT, municipality TEXT, country_id TEXT,
                                lat REAL, lon REAL, type TEXT, search TEXT);
     """)
-    db.executemany("INSERT INTO countries VALUES (?,?,?,?,?,?,?)",
-                   [(p["id"], p["name"], norm(p["name"]), *b) for p, _, b in countries])
+    db.executemany("INSERT INTO countries VALUES (?,?,?,?,?,?,?,?)",
+                   [(p["id"], p["name"], p["search"], *b, p["name_en"]) for p, _, b in countries])
     db.executemany("INSERT INTO states VALUES (?,?,?,?,?,?,?,?)",
-                   [(p["id"], p["name"], p["country"], norm(p["name"]), *b) for p, _, b in states])
+                   [(p["id"], p["name"], p["country"], p["search"], *b) for p, _, b in states])
 
     admin1 = {}
     with open(RAW / "admin1CodesASCII.txt", encoding="utf-8") as fh:
@@ -492,7 +513,7 @@ if __name__ == "__main__":
         "clip": (WORK / "clipped_states.geojsonl").exists() or TILES.exists() and GEO_DB.exists(),
         "tiles": TILES.exists(),
         "db": GEO_DB.exists() and sqlite3.connect(GEO_DB).execute(
-            "SELECT 1 FROM pragma_table_info('states') WHERE name = 'x0'").fetchone() is not None,
+            "SELECT 1 FROM pragma_table_info('countries') WHERE name = 'name_en'").fetchone() is not None,
     }
     try:
         for step in steps:

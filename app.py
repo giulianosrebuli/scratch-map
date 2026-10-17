@@ -125,6 +125,11 @@ def db():
         g.db.execute("PRAGMA foreign_keys = ON")
         if GEO_DB.exists():  # na primeira execução, só depois da montagem
             g.db.execute(f"ATTACH DATABASE 'file:{GEO_DB}?mode=ro' AS geo")
+            # países no idioma da interface; estados e cidades ficam com o nome de lá
+            en = lang() != "pt-BR" and g.db.execute(
+                "SELECT 1 FROM pragma_table_info('countries', 'geo') WHERE name = 'name_en'").fetchone()
+            g.db.execute(f"""CREATE TEMP VIEW countries AS SELECT id, {'COALESCE(name_en, name)' if en else 'name'}
+                             AS name, search, x0, y0, x1, y1 FROM geo.countries""")
     return g.db
 
 
@@ -348,7 +353,7 @@ def patch_settings():
         elif key == "start_view" and (value in START_VIEWS or value is None):
             set_setting(key, value)
         elif key == "home_country" and (value is None or db().execute(
-                "SELECT 1 FROM geo.countries WHERE id = ?", (value,)).fetchone()):
+                "SELECT 1 FROM countries WHERE id = ?", (value,)).fetchone()):
             set_setting(key, value)
         elif key == "start_fixed" and valid_view(value):
             set_setting(key, value)
@@ -552,7 +557,7 @@ def stats():
 def config():
     # países visitados, para o "cidades visitadas em …" da vista inicial
     countries = db().execute(f"""SELECT co.id, co.name FROM ({VISITED_COUNTRIES_SQL}) v
-                                 JOIN geo.countries co ON co.id = v.id ORDER BY co.name""").fetchall()
+                                 JOIN countries co ON co.id = v.id ORDER BY co.name""").fetchall()
     geo_v = int(TILES.stat().st_mtime)
     return render_template("config.html", settings=settings(), countries=countries, geo_v=geo_v,
                            geodata={"mode": installer.mode()} | installer.manifest())
@@ -595,10 +600,10 @@ def visited():
 
     countries = con.execute(f"""
         SELECT co.id, co.name FROM ({VISITED_COUNTRIES_SQL}) v
-        JOIN geo.countries co ON co.id = v.id ORDER BY co.name""").fetchall()
+        JOIN countries co ON co.id = v.id ORDER BY co.name""").fetchall()
     states = con.execute(f"""
         SELECT s.id, s.name, s.country_id, co.name AS country FROM ({VISITED_STATES_SQL}) v
-        JOIN geo.states s ON s.id = v.id LEFT JOIN geo.countries co ON co.id = s.country_id
+        JOIN geo.states s ON s.id = v.id LEFT JOIN countries co ON co.id = s.country_id
         ORDER BY co.name, s.name""").fetchall()
     cities = con.execute("""
         SELECT c.id, c.name, c.region, c.lat, c.lon, c.state_id, c.country_id,
@@ -606,18 +611,18 @@ def visited():
           FROM visits v JOIN geo.cities c ON c.id = v.ref_id
           LEFT JOIN city_shapes cs ON cs.city_id = c.id
           LEFT JOIN geo.states s ON s.id = c.state_id
-          LEFT JOIN geo.countries co ON co.id = c.country_id
+          LEFT JOIN countries co ON co.id = c.country_id
          WHERE v.kind = 'city' ORDER BY co.name, c.name""").fetchall()
     airports = con.execute("""
         SELECT a.id, a.name, a.municipality, a.lat, a.lon, a.country_id, co.name AS country
           FROM visits v JOIN geo.airports a ON a.id = v.ref_id
-          LEFT JOIN geo.countries co ON co.id = a.country_id
+          LEFT JOIN countries co ON co.id = a.country_id
          WHERE v.kind = 'airport' ORDER BY a.id""").fetchall()
     landmarks = con.execute(f"""
         SELECT l.id, l.name, l.lat, l.lon, c.name AS city, co.name AS country,
                ({COVER_SQL}) AS cover
           FROM landmarks l LEFT JOIN geo.cities c ON c.id = l.city_id
-          LEFT JOIN geo.countries co ON co.id = c.country_id
+          LEFT JOIN countries co ON co.id = c.country_id
          WHERE l.draft = 0 ORDER BY l.name""").fetchall()
     return jsonify({
         "country": decorate("country", countries),
@@ -682,7 +687,7 @@ def stats_countries():
     """Álbum de países (só os que têm bandeira) + totais de visitados por tipo."""
     vis = visited_set()
     countries = [{"id": r["id"], "name": r["name"], "visited": ("country", r["id"]) in vis}
-                 for r in db().execute("SELECT id, name FROM geo.countries") if r["id"] in FLAG_IDS]
+                 for r in db().execute("SELECT id, name FROM countries") if r["id"] in FLAG_IDS]
     totals = {k: sum(1 for kind, _ in vis if kind == k) for k in ("country", "state", "city", "airport")}
     totals["landmark"] = db().execute("SELECT COUNT(*) FROM landmarks WHERE draft = 0").fetchone()[0]
     return jsonify(countries=by_visited(countries, lambda r: norm(r["name"])), totals=totals,
@@ -693,7 +698,7 @@ def stats_countries():
 def stats_country(cid):
     """Estados de um país, com quantas cidades de cada um foram visitadas."""
     con, vis = db(), visited_set()
-    c = con.execute("SELECT id, name FROM geo.countries WHERE id = ?", (cid,)).fetchone() or abort(404)
+    c = con.execute("SELECT id, name FROM countries WHERE id = ?", (cid,)).fetchone() or abort(404)
     seen = {}
     for r in con.execute("""SELECT c.state_id FROM visits v JOIN geo.cities c ON c.id = v.ref_id
                              WHERE v.kind = 'city' AND c.country_id = ?""", (cid,)):
@@ -710,7 +715,7 @@ def stats_state(sid):
     """Cidades de um estado: visitadas primeiro, depois as maiores."""
     con, vis, pc = db(), visited_set(), photo_counts()
     st = con.execute("""SELECT s.id, s.name, s.country_id, co.name AS country FROM geo.states s
-                          JOIN geo.countries co ON co.id = s.country_id WHERE s.id = ?""", (sid,)).fetchone() or abort(404)
+                          JOIN countries co ON co.id = s.country_id WHERE s.id = ?""", (sid,)).fetchone() or abort(404)
     cities = [{"id": str(r["id"]), "name": r["name"], "visited": ("city", str(r["id"])) in vis,
                "photos": pc.get(("city", str(r["id"])), 0), "population": r["population"] or 0}
               for r in con.execute("SELECT id, name, population FROM geo.cities WHERE state_id = ?", (sid,))]
@@ -746,26 +751,26 @@ def norm(s):
 
 
 SEARCH_SQL = {
-    "country": """SELECT id, name, NULL AS sub FROM geo.countries
+    "country": """SELECT id, name, NULL AS sub FROM countries
                   WHERE search LIKE :pre OR search LIKE :mid ORDER BY search LIKE :pre DESC, name LIMIT 15""",
     "state": """SELECT s.id, s.name, co.name AS sub FROM geo.states s
-                LEFT JOIN geo.countries co ON co.id = s.country_id
+                LEFT JOIN countries co ON co.id = s.country_id
                 WHERE s.search LIKE :pre OR s.search LIKE :mid
                 ORDER BY s.search LIKE :pre DESC, s.name LIMIT 15""",
     "city": """SELECT c.id, c.name, COALESCE(s.name, c.region) || ', ' || COALESCE(co.name, c.country_id) AS sub
                FROM geo.cities c LEFT JOIN geo.states s ON s.id = c.state_id
-               LEFT JOIN geo.countries co ON co.id = c.country_id
+               LEFT JOIN countries co ON co.id = c.country_id
                WHERE c.search LIKE :pre OR c.search LIKE :mid
                ORDER BY c.search LIKE :pre DESC, c.population DESC LIMIT 15""",
     "airport": """SELECT a.id, a.id || ' — ' || a.name AS name,
                          COALESCE(a.municipality, '') || ', ' || COALESCE(co.name, a.country_id) AS sub
-                  FROM geo.airports a LEFT JOIN geo.countries co ON co.id = a.country_id
+                  FROM geo.airports a LEFT JOIN countries co ON co.id = a.country_id
                   WHERE a.id = :exact OR a.search LIKE :mid
                   ORDER BY a.id = :exact DESC, a.type, a.name LIMIT 15""",
     # landmarks são poucos: filtra em Python (norm) para ignorar acento
     "landmark": """SELECT l.id, l.name, c.name || ', ' || COALESCE(co.name, c.country_id) AS sub
                    FROM landmarks l LEFT JOIN geo.cities c ON c.id = l.city_id
-                   LEFT JOIN geo.countries co ON co.id = c.country_id
+                   LEFT JOIN countries co ON co.id = c.country_id
                    WHERE l.draft = 0 ORDER BY l.name""",
 }
 
@@ -792,6 +797,15 @@ def search():
 
 
 # ------------------------------------------------------------------ lista de cidades
+@app.get("/api/names")
+def place_names():
+    """Nome de cada país e estado, para o hover do mapa: o nome gravado nas
+    tiles é o da montagem, sem idioma."""
+    con = db()
+    return jsonify(country={r["id"]: r["name"] for r in con.execute("SELECT id, name FROM countries")},
+                   state={r["id"]: r["name"] for r in con.execute("SELECT id, name FROM geo.states")})
+
+
 # Marcar várias de uma vez (fim do assistente e "Lista de cidades" no +): as
 # cidades de um país (ou estado), das maiores para as menores, com filtro por nome.
 CITY_PAGE = 50
@@ -802,7 +816,7 @@ def countries_list():
     """Todos os países, por nome, e qual seria o "de casa" (o mais visitado).
     Sem os territórios disputados X* do Overture (como no álbum), exceto os com
     bandeira (Kosovo)."""
-    rows = [r for r in db().execute("SELECT id, name FROM geo.countries")
+    rows = [r for r in db().execute("SELECT id, name FROM countries")
             if not r["id"].startswith("X") or r["id"] in FLAG_IDS]
     top = db().execute("""SELECT c.country_id FROM visits v JOIN geo.cities c ON c.id = v.ref_id
                           WHERE v.kind = 'city' GROUP BY c.country_id ORDER BY COUNT(*) DESC LIMIT 1""").fetchone()
@@ -872,7 +886,7 @@ def nearby():
     rows = db().execute(f"""
         SELECT t.id, {sub},
                ((t.lat - :lat) * (t.lat - :lat) + (t.lon - :lon) * (t.lon - :lon)) {weight} AS d
-          FROM {table} {join} LEFT JOIN geo.countries co ON co.id = t.country_id
+          FROM {table} {join} LEFT JOIN countries co ON co.id = t.country_id
          WHERE t.lat BETWEEN :lat - :r AND :lat + :r AND t.lon BETWEEN :lon - :r AND :lon + :r
          ORDER BY d LIMIT :limit""", {"lat": lat, "lon": lon, "r": radius, "limit": limit}).fetchall()
     ex, vis = explicit_set(), visited_set()
@@ -882,23 +896,23 @@ def nearby():
 def place_info(kind, ref_id):
     con = db()
     if kind == "country":
-        r = con.execute("SELECT id, name, x0, y0, x1, y1 FROM geo.countries WHERE id = ?", (ref_id,)).fetchone()
+        r = con.execute("SELECT id, name, x0, y0, x1, y1 FROM countries WHERE id = ?", (ref_id,)).fetchone()
         crumbs = []
     elif kind == "state":
         r = con.execute("""SELECT s.id, s.name, s.country_id, co.name AS country, s.x0, s.y0, s.x1, s.y1
-                           FROM geo.states s LEFT JOIN geo.countries co ON co.id = s.country_id
+                           FROM geo.states s LEFT JOIN countries co ON co.id = s.country_id
                            WHERE s.id = ?""", (ref_id,)).fetchone()
         crumbs = [("country", r["country_id"], r["country"])] if r else []
     elif kind == "city":
         r = con.execute("""SELECT c.id, c.name, c.lat, c.lon, c.state_id, c.country_id,
                                   s.name AS state, co.name AS country
                            FROM geo.cities c LEFT JOIN geo.states s ON s.id = c.state_id
-                           LEFT JOIN geo.countries co ON co.id = c.country_id WHERE c.id = ?""",
+                           LEFT JOIN countries co ON co.id = c.country_id WHERE c.id = ?""",
                         (ref_id,)).fetchone()
         crumbs = [("state", r["state_id"], r["state"]), ("country", r["country_id"], r["country"])] if r else []
     elif kind == "airport":
         r = con.execute("""SELECT a.id, a.name, a.municipality, a.lat, a.lon, a.country_id, co.name AS country
-                           FROM geo.airports a LEFT JOIN geo.countries co ON co.id = a.country_id
+                           FROM geo.airports a LEFT JOIN countries co ON co.id = a.country_id
                            WHERE a.id = ?""", (ref_id,)).fetchone()
         crumbs = [("country", r["country_id"], r["country"])] if r else []
     elif kind == "landmark":
@@ -906,7 +920,7 @@ def place_info(kind, ref_id):
                                   c.name AS city, c.state_id, s.name AS state, c.country_id, co.name AS country
                            FROM landmarks l LEFT JOIN geo.cities c ON c.id = l.city_id
                            LEFT JOIN geo.states s ON s.id = c.state_id
-                           LEFT JOIN geo.countries co ON co.id = c.country_id
+                           LEFT JOIN countries co ON co.id = c.country_id
                            WHERE l.id = ?""", (ref_id,)).fetchone()
         crumbs = [("city", r["city_id"], r["city"]), ("state", r["state_id"], r["state"]),
                   ("country", r["country_id"], r["country"])] if r else []
@@ -972,7 +986,7 @@ def photo_index():
           LEFT JOIN landmarks l ON p.kind = 'landmark' AND l.id = p.ref_id
           LEFT JOIN geo.airports a ON p.kind = 'airport' AND a.id = p.ref_id
           LEFT JOIN geo.states s ON p.kind = 'state' AND s.id = p.ref_id
-          LEFT JOIN geo.countries co ON p.kind = 'country' AND co.id = p.ref_id
+          LEFT JOIN countries co ON p.kind = 'country' AND co.id = p.ref_id
          WHERE p.kind != 'landmark' OR l.draft = 0""").fetchall()
     airport_city = {}
     for r in rows:
@@ -983,7 +997,7 @@ def photo_index():
     cities = {r["id"]: dict(r) for r in con.execute(f"""
         SELECT c.id, c.name, c.state_id, s.name AS state, c.country_id, co.name AS country
           FROM geo.cities c LEFT JOIN geo.states s ON s.id = c.state_id
-          LEFT JOIN geo.countries co ON co.id = c.country_id
+          LEFT JOIN countries co ON co.id = c.country_id
          WHERE c.id IN ({",".join("?" * len(city_ids))})""", list(city_ids))}
     names = {}
 
@@ -1225,7 +1239,7 @@ def landmark_near():
     if c["state_id"]:
         s = con.execute("SELECT name FROM geo.states WHERE id = ?", (c["state_id"],)).fetchone()
         out.append({"kind": "state", "id": c["state_id"], "name": s["name"]})
-    co = con.execute("SELECT name FROM geo.countries WHERE id = ?", (c["country_id"],)).fetchone()
+    co = con.execute("SELECT name FROM countries WHERE id = ?", (c["country_id"],)).fetchone()
     if co:
         out.append({"kind": "country", "id": c["country_id"], "name": co["name"]})
     return jsonify([{**o, **flags(o["kind"], o["id"], ex, vis)} for o in out])
