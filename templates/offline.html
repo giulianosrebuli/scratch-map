@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0f1830">
+  <title>Scratch Map</title>
+  {# guardada pelo service worker (static/sw.js) e mostrada sem o servidor: tudo
+     embutido, nada de CSS ou imagem de fora além do ícone também guardado #}
+  <style>
+    html, body { margin: 0; height: 100%; }
+    body {
+      display: grid; place-items: center; padding: 24px; box-sizing: border-box;
+      background: radial-gradient(ellipse at center, #22345c 0%, #0f1830 60%, #05070f 100%);
+      font: 16px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; color: #2b2a27;
+    }
+    main {
+      max-width: 380px; background: #fff; border-radius: 24px; padding: 26px 22px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, .35); text-align: center;
+    }
+    img { width: 72px; height: 72px; border-radius: 18px; }
+    h1 { font-size: 21px; margin: 12px 0 6px; }
+    p { color: #6b655a; margin: 0 0 18px; font-size: 15px; }
+    button {
+      font: inherit; font-weight: 600; border: none; border-radius: 12px; padding: 12px 22px;
+      background: #2b2a27; color: #fff; cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <img src="/static/icons/icon-192.png" alt="">
+    <h1>{{ _('Sem conexão com o servidor') }}</h1>
+    <p>{{ _('O Scratch Map roda no computador de casa. Confira se ele está ligado e se este aparelho está na mesma rede (ou no Tailscale).') }}</p>
+    <button onclick="location.reload()">{{ _('Tentar de novo') }}</button>
+  </main>
+</body>
+</html>

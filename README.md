@@ -200,7 +200,8 @@ scratch-map/
 ├── templates/config.html     # configurações
 ├── templates/setup.html      # assistente de primeira execução
 ├── templates/_navbar.html    # barra de menu na base, comum às telas
-├── templates/_head.html      # <head> comum: CSS + cores escolhidas
+├── templates/_head.html      # <head> comum: CSS, cores escolhidas, ícone e PWA
+├── templates/offline.html    # "sem conexão" (guardada pelo service worker)
 ├── static/
 │   ├── common.js             # helpers, foto impressa e lightbox (mapa + mural)
 │   ├── app.js / app.css      # mapa (o CSS serve a todas as páginas)
@@ -211,6 +212,8 @@ scratch-map/
 │   ├── setup.js              # assistente de primeira execução (e de perfil novo)
 │   ├── backdrop.js           # fundo do assistente e da escolha de perfil (mundo girando)
 │   ├── citypicker.js         # lista de cidades (marcar várias; assistente e +)
+│   ├── sw.js                 # service worker (servido em /sw.js): só a página "sem conexão"
+│   ├── icons/                # ícone do app (globo): PWA, iPhone e favicon
 │   └── vendor/               # MapLibre + PMTiles; flags/ = bandeiras (flag-icons, MIT);
 │                             # world-lite.geojson = mundo do fundo do assistente (Natural Earth)
 ├── geodata/                  # gerado, não versionado (veja "Dados geográficos")
@@ -442,6 +445,29 @@ tem as suas):
 | `borders_country`, `borders_state`, `borders_city` | `1`/`0`: linha branca entre países, entre estados e em volta das cidades. Sem a chave: países e estados ligados, cidades desligado |
 | `ext_landmark_name`, `ext_city_shape`, `ext_state_flags` | `0` = pedido externo desligado (sem a chave: ligado) |
 
+### No celular (app instalável)
+
+O scratch map é um PWA: no celular, dá para pôr na tela inicial e abrir em
+tela cheia, com ícone próprio, como um app. Continua sendo o servidor de casa
+mostrando as telas (nada fica guardado no aparelho além da página "sem
+conexão", mostrada quando o computador não responde).
+
+- **iPhone** (Safari): Compartilhar → "Adicionar à Tela de Início".
+- **Android** (Chrome): menu → "Instalar app".
+
+Para instalar de verdade (e ter o service worker), o Chrome exige **HTTPS**;
+em `http://` vira só um atalho. Com Tailscale, dá para ter HTTPS com
+certificado válido só dentro da sua tailnet, sem abrir nada para a internet:
+
+```bash
+tailscale serve --bg --https=8443 http://127.0.0.1:5020
+# https://<máquina>.<tailnet>.ts.net:8443 (desligar: tailscale serve --https=8443 off)
+```
+
+Não use o Funnel (`tailscale funnel`): ele publica na internet, e o app não
+tem senha. Precisa do MagicDNS e dos certificados HTTPS ligados no painel do
+Tailscale.
+
 ### Outra instância
 
 Para a família, use perfis (acima). Uma instância separada só faz sentido para
@@ -509,6 +535,7 @@ saem junto quando você desmarca um lugar. Para limpar, apague a pasta à mão.
 | POST | `/api/setup/start` | `{mode: "leve" \| "completo"}`: conclui o assistente e começa (ou retoma) a montagem |
 | POST | `/api/flags/refetch` | busca de novo as bandeiras de estado (409 se desligadas) |
 | POST / DELETE | `/api/profile/photo` | foto de perfil (multipart `photo`) / remove |
+| GET | `/manifest.webmanifest`, `/sw.js`, `/offline` | app instalável (PWA) |
 | DELETE | `/api/profile` | apaga o perfil em uso (move para `data/profiles-removed/`; não o único) |
 | GET | `/perfis` | "quem está usando?"; `/perfis/<id>/usar` escolhe (cookie `perfil`), `/perfis/<id>/foto.jpg` |
 | POST | `/perfis/novo` | cria um perfil e abre o assistente para ele |

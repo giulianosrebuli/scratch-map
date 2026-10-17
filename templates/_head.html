@@ -3,6 +3,18 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+  {# app instalável (PWA): ícone, nome e cores na tela inicial; o service worker
+     só funciona em HTTPS (ou localhost) e mostra a página "sem conexão" #}
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/icons/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="48x48" href="/static/icons/favicon-48.png">
+  <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Scratch Map">
+  <meta name="theme-color" content="#fbf8f2" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#141519" media="(prefers-color-scheme: dark)">
+  <script>if ('serviceWorker' in navigator && window.isSecureContext) navigator.serviceWorker.register('/sw.js').catch(() => {});</script>
   {% if prefs.colors %}<style id="user-colors">:root { {% for k, v in prefs.colors.items() %}--{{ k }}: {{ v }}; {% endfor %}}</style>{% endif %}
   {# idioma da interface: SM.t() (static/common.js) traduz com esta tabela (i18n.py) #}
   <script>window.LANG = {{ lang | tojson }}; window.I18N = {{ i18n_table | tojson }}; window.PROFILE = {{ profile_id | tojson }};</script>
