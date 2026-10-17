@@ -175,7 +175,6 @@ scratch-map/
 ├── installer.py              # primeira execução: assistente e montagem dos dados do mapa
 ├── i18n.py, i18n/en.json     # tradução (o texto em português é a chave)
 ├── Dockerfile, docker-compose.yml
-├── melhorias.md              # lista de alterações pedidas/feitas
 ├── setup.sh                  # prepara uma instância do zero (venv + geodata)
 ├── requirements.txt
 ├── scripts/build_geodata.py  # baixa e processa os dados geográficos
