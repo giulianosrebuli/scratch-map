@@ -275,8 +275,8 @@ mesmas linhas do OpenStreetMap e a costa é a mesma em todas.
 | [GeoNames](https://www.geonames.org/) `cities1000` | ~171 mil cidades com ≥1000 hab. (busca e ponto) | CC-BY 4.0 |
 | [OurAirports](https://ourairports.com/data/) | ~5,3 mil aeroportos com código IATA (grandes/médios, ou pequenos com voo regular) | domínio público |
 
-Atribuição obrigatória (já está no canto do mapa): "Overture Maps · ©
-OpenStreetMap contributors". Os arquivos gerados a partir deles (`world.pmtiles`,
+Atribuição obrigatória ("Overture Maps · © OpenStreetMap contributors"):
+fica em Configurações → Fontes do mapa, junto com as outras fontes. Os arquivos gerados a partir deles (`world.pmtiles`,
 `localities/`, `land.parquet`) também ficam sob ODbL.
 
 **Como é montado** (`scripts/build_geodata.py`, etapas retomáveis):

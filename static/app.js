@@ -57,10 +57,9 @@
       projection: { type: GLOBE ? 'globe' : 'mercator' },
     },
     center: [-30, 10], zoom: 1.6, minZoom: 0.8, maxZoom: 14,
-    attributionControl: { compact: true, customAttribution: 'Overture Maps · © OpenStreetMap · GeoNames · OurAirports' },
+    attributionControl: false,  // as fontes ficam em Configurações → Fontes do mapa
     dragRotate: false, pitchWithRotate: false,
   });
-  map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-left');
   map.touchZoomRotate.disableRotation();
 
   const emptyFC = { type: 'FeatureCollection', features: [] };

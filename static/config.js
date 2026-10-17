@@ -201,7 +201,6 @@
       attributionControl: false, dragRotate: false, pitchWithRotate: false,
     });
     fixedMap.touchZoomRotate.disableRotation();
-    fixedMap.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-left');
     let timer;
     fixedMap.on('moveend', () => {
       clearTimeout(timer);

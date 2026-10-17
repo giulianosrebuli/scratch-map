@@ -6,7 +6,6 @@
  "Adicionar": "Add",
  "Configurações": "Settings",
  "Voltar ao perfil": "Back to profile",
- "configurações": "settings",
  "Aparência": "Appearance",
  "Idioma": "Language",
  "Tema": "Theme",
@@ -69,7 +68,6 @@
  "Toque para pular": "Tap to skip",
  "Gaveta": "Drawer",
  "Arrastar para fechar": "Drag to close",
- "mural": "wall",
  "Ordem das fotos": "Photo order",
  "Linha do tempo": "Timeline",
  "Por localidade": "By place",
@@ -266,5 +264,16 @@
  "é o único perfil": "it's the only profile",
  "Seu mapa de raspar: os lugares por onde passou, com as fotos de cada um.": "Your scratch-off map: the places you've been, with the photos of each one.",
  "Sem conexão com o servidor": "Can't reach the server",
- "O Scratch Map roda no computador de casa. Confira se ele está ligado e se este aparelho está na mesma rede (ou no Tailscale).": "Scratch Map runs on your home computer. Check that it's on and that this device is on the same network (or on Tailscale)."
+ "O Scratch Map roda no computador de casa. Confira se ele está ligado e se este aparelho está na mesma rede (ou no Tailscale).": "Scratch Map runs on your home computer. Check that it's on and that this device is on the same network (or on Tailscale).",
+ "Fontes do mapa": "Map sources",
+ "O mapa é montado nesta máquina a partir de dados abertos:": "The map is built on this machine from open data:",
+ "países, estados e áreas de cidade": "countries, states and city areas",
+ "colaboradores do OpenStreetMap": "OpenStreetMap contributors",
+ "litoral e, por dentro do Overture, as divisas": "coastline and, through Overture, the boundaries",
+ "cidades (busca e ponto)": "cities (search and point)",
+ "aeroportos": "airports",
+ "domínio público": "public domain",
+ "o mundo do fundo do assistente": "the world behind the setup wizard",
+ "bandeiras de países (MIT) e de estados (Wikimedia Commons)": "country flags (MIT) and state flags (Wikimedia Commons)",
+ "desenho do mapa": "map rendering"
 }
