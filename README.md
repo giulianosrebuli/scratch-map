@@ -45,7 +45,7 @@ systemd de usuário. Acesso pela rede de casa ou por VPN (ex.: Tailscale).
     Marcadas, uma cena só raspa tudo junto; os contornos chegam aos poucos;
   - **Monumento**: a partir de foto (veja "Monumentos");
   - **Foto**: busca qualquer lugar (país, estado, cidade, aeroporto ou
-    landmark); tocar nele abre a escolha dos arquivos e, depois do envio, o
+    monumento); tocar nele abre a escolha dos arquivos e, depois do envio, o
     lugar.
 - **Raspagem ao marcar**: o lugar novo (cidade, estado, país) não pinta de
   uma vez: a película (o mapa de antes) é raspada em 5 s, soltando lascas.
@@ -65,8 +65,8 @@ systemd de usuário. Acesso pela rede de casa ou por VPN (ex.: Tailscale).
   círculos com a bandeira (visitados em cor, os outros bem apagados; a lista
   dos não visitados começa dobrada, com "Ver mais"). Tocar
   num país mostra os estados; num estado, as cidades; numa cidade, abre no
-  mapa (`/stats#BR`, `/stats#BR/BR-SP`). Estado/cidade sem bandeira mostra a
-  sigla. No fim, as listas de aeroportos e landmarks.
+  mapa (`/perfil#BR`, `/perfil#BR/BR-SP`). Estado/cidade sem bandeira mostra a
+  sigla. No fim, as listas de aeroportos e monumentos.
 - **Marcação implícita**: cidade marca o estado e o país dela; estado marca o
   país. **Aeroporto não marca nada.** O implícito é calculado na hora, não é
   gravado: desmarcar a última cidade de um estado desmarca o estado, a menos que
@@ -79,11 +79,11 @@ systemd de usuário. Acesso pela rede de casa ou por VPN (ex.: Tailscale).
   lugar não visitado já marca o lugar. As fotos vêm das mais recentes para as
   mais antigas.
 - **Fotos sobem na hierarquia** (cidade ⊂ estado ⊂ país): a cidade mostra
-  também as fotos dos landmarks e aeroportos dela; o estado e o país mostram as próprias e,
+  também as fotos dos monumentos e aeroportos dela; o estado e o país mostram as próprias e,
   abaixo, um grupo por cidade contida (aeroporto entra pela cidade mais
   próxima). As fotos não são copiadas: apagar ou mudar a data em qualquer tela
   muda a original. A contagem 📷 do estado/país é só a do próprio lugar; a da
-  cidade inclui os landmarks.
+  cidade inclui os monumentos.
 - **Mural** (`/mural`, aba "Mural" da barra): todas as fotos, impressas e
   "jogadas" sobre uma mesa de madeira clara, num tom nude (escura no tema escuro), com
   inclinação e deslocamento fixos por foto, sem sobrepor. A grade é contínua:
@@ -97,13 +97,13 @@ systemd de usuário. Acesso pela rede de casa ou por VPN (ex.: Tailscale).
   Clicar numa foto amplia, com setas pelo mural todo e "Abrir <lugar>", que
   leva ao mapa.
 - **Cidade com limite preenchido**: ao marcar uma cidade, o contorno do
-  município é calculado uma vez (dados locais do Overture/OSM) e pintado no
-  mapa; a costa e as divisas coincidem com as do estado e do país. A cidade
+  município é calculado uma vez (dados locais do Overture/OSM; no modo Leve,
+  pedido ao Nominatim) e pintado no mapa; a costa e as divisas coincidem com as do estado e do país. A cidade
   aparece só pelo contorno preenchido, sem pin; de longe, cidade pequena fica
   com poucos pixels. Cidade sem área no Overture aparece como pin (bolinha).
   Veja "Limites das cidades" abaixo.
 - **Monumentos** (no código e na API, `landmark`; pontos turísticos, restaurantes, o que quiser): só nascem de
-  uma foto. Em **+ → Landmark**:
+  uma foto. Em **+ → Monumento**:
   - a posição vem do **GPS da foto** (EXIF); sem GPS (prints, fotos do
     WhatsApp, iPhone que tirou a localização ao enviar), toque no mapa. O
     marcador é arrastável. Nesse formulário a gaveta fica mais baixa e não
@@ -117,23 +117,23 @@ systemd de usuário. Acesso pela rede de casa ou por VPN (ex.: Tailscale).
   - no mapa é um **alfinete** de longe e, a partir do zoom 8, a **miniatura da
     foto impressa**. A capa é a foto mais antiga;
   - dá para renomear, mover e adicionar fotos. Apagar a última foto apaga o
-    landmark (as fotos vão para o trash). Rascunho abandonado (fechou a página
+    monumento (as fotos vão para o trash). Rascunho abandonado (fechou a página
     no meio do formulário) é apagado no próximo início do serviço, depois de
     um dia.
-- **Configurações** (`/config`, engrenagem no cabeçalho do Perfil): por enquanto, **Aparência**:
-  - **Tema** claro, escuro ou automático (segue o sistema). No escuro, as
-    fotos impressas continuam papel branco;
-  - **Cores do mapa** (água, terra, país, estado, cidade, aeroporto,
-    landmark), com prévia ao vivo e "Restaurar cores padrão".
-  E **Mapa**:
-  - **Formato**: plano ou globo;
-  - **Vista inicial**: cidades visitadas num país (escolhido entre os
-    visitados), todas as cidades visitadas, onde parou (por aparelho) ou uma
-    posição fixa, escolhida arrastando um mapa pequeno ali mesmo.
-  E **Backup** (baixar um .zip com tudo; restaurar). E **Dados e privacidade**: liga/desliga cada pedido que sai da máquina
-  (sugestão de nome do landmark e contorno de cidade de exceção, ambos no
-  Nominatim; bandeiras de estado, no Wikidata/Commons), dizendo o que sai e
-  para quem. Desligado, o pedido não acontece.
+- **Configurações** (`/config`, engrenagem no cabeçalho do Perfil):
+  - **Aparência**: idioma; tema claro, escuro ou automático (segue o sistema;
+    no escuro, as fotos impressas continuam papel branco); cores do mapa
+    (água, terra, país, estado, cidade, aeroporto, monumento), com prévia ao
+    vivo e "Restaurar cores padrão";
+  - **Mapa**: formato (plano ou globo); bordas; vista inicial (cidades
+    visitadas num país, todas as visitadas, onde parou, por aparelho, ou uma
+    posição fixa, escolhida arrastando um mapa pequeno ali mesmo);
+  - **Dados e privacidade**: o modo dos dados do mapa (Leve/Completo) e um
+    liga/desliga para cada pedido que sai da máquina (sugestão de nome do
+    monumento e contorno de cidade, no Nominatim; bandeiras de estado, no
+    Wikidata/Commons), dizendo o que sai e para quem. Desligado, o pedido não
+    acontece;
+  - **Backup**: baixar um .zip com tudo; restaurar.
   Fica tudo na tabela `settings` (vale em todos os aparelhos) e entra no
   `<head>` de cada página (`templates/_head.html`).
 - **Globo/plano**: escolhido na configuração (Mapa → Formato). No globo o
@@ -169,7 +169,7 @@ variáveis).
 ```
 scratch-map/
 ├── app.py                    # backend Flask (API + páginas)
-├── boundaries.py             # contorno das cidades (sob demanda) e nome de landmark
+├── boundaries.py             # contorno das cidades (sob demanda) e nome de monumento
 ├── flags.py                  # bandeiras de estado (Wikidata, em segundo plano)
 ├── geoshapes.py              # recorte pelo litoral e busca da área de cidade (Overture)
 ├── installer.py              # primeira execução: assistente e montagem dos dados do mapa
@@ -183,31 +183,32 @@ scratch-map/
 ├── templates/index.html      # mapa
 ├── templates/mural.html      # mural de fotos
 ├── templates/perfil.html     # perfil (nome, foto) + álbum de bandeiras
-├── templates/config.html     # configurações (aparência)
+├── templates/config.html     # configurações
 ├── templates/setup.html      # assistente de primeira execução
 ├── templates/_navbar.html    # barra de menu na base, comum às telas
 ├── templates/_head.html      # <head> comum: CSS + cores escolhidas
 ├── static/
 │   ├── common.js             # helpers, foto impressa e lightbox (mapa + mural)
-│   ├── app.js / app.css      # mapa (o CSS serve às duas páginas)
+│   ├── app.js / app.css      # mapa (o CSS serve a todas as páginas)
 │   ├── mural.js              # mural
 │   ├── stats.js              # álbum de bandeiras (no perfil)
 │   ├── profile.js            # nome e foto do perfil
 │   ├── config.js             # configurações
 │   ├── setup.js              # assistente de primeira execução
 │   ├── citypicker.js         # lista de cidades (marcar várias; assistente e +)
-│   └── vendor/               # MapLibre + PMTiles; flags/ = bandeiras (flag-icons, MIT)
+│   └── vendor/               # MapLibre + PMTiles; flags/ = bandeiras (flag-icons, MIT);
+│                             # world-lite.geojson = mundo do fundo do assistente (Natural Earth)
 ├── geodata/                  # gerado, não versionado (veja "Dados geográficos")
 │   ├── world.pmtiles         # tiles de países e estados (~700 MB)
 │   ├── geo.db                # países, estados, cidades, aeroportos
-│   ├── localities/           # áreas de cidade do Overture (parquet em blocos de 10°)
-│   ├── localities_large.parquet  # as com mais de 3° (ex.: Vitória + ilha da Trindade)
+│   ├── localities/           # áreas de cidade do Overture (parquet em blocos de 10°; só no modo Completo)
+│   ├── localities_large.parquet  # as com mais de 3° (ex.: Vitória + ilha da Trindade; só no Completo)
 │   ├── land.parquet          # litoral do OSM
 │   ├── geodata.json          # versão do Overture e modo (leve/completo) da montagem
 │   ├── build-status.json, build.log  # andamento da montagem pelo assistente
 │   └── raw/ work/            # downloads e intermediários do build (dá para apagar)
 ├── data/                     # SEUS DADOS (não versionado — faça backup)
-│   ├── scratch.db            # visitas, landmarks, metadados das fotos, limites das cidades
+│   ├── scratch.db            # visitas, monumentos, metadados das fotos, limites das cidades
 │   ├── setup.json            # o que o assistente decidiu (concluído, modo)
 │   ├── flags/                # bandeiras de estado baixadas do Wikidata (<ID>.webp)
 │   ├── profile.jpg           # foto de perfil
@@ -245,7 +246,7 @@ mesmas linhas do OpenStreetMap e a costa é a mesma em todas.
 
 | Fonte | Uso | Licença |
 |---|---|---|
-| [Overture Maps](https://overturemaps.org/), tema *divisions* (release 2026-09-23.1) | países, estados e áreas de cidade (dados do OpenStreetMap) | ODbL |
+| [Overture Maps](https://overturemaps.org/), tema *divisions* (a release mais nova na hora da montagem) | países, estados e áreas de cidade (dados do OpenStreetMap) | ODbL |
 | [OSM land polygons](https://osmdata.openstreetmap.de/data/land-polygons.html) | litoral, para recortar tudo acima | ODbL |
 | [GeoNames](https://www.geonames.org/) `cities1000` | ~171 mil cidades com ≥1000 hab. (busca e ponto) | CC-BY 4.0 |
 | [OurAirports](https://ourairports.com/data/) | ~5,3 mil aeroportos com código IATA (grandes/médios, ou pequenos com voo regular) | domínio público |
@@ -295,8 +296,9 @@ aeroporto = código IATA. O "estado" é o primeiro nível abaixo do país no OSM
 varia por país: no Brasil e nos EUA são os estados; na França, as regiões.
 
 Para refazer uma etapa: `venv/bin/python scripts/build_geodata.py --redo db`.
-Para trocar de release do Overture, mude `OVERTURE` no script e apague
-`geodata/work/` e os `.parquet`. A pasta dos dados pode ser outra com
+A release do Overture usada fica em `geodata/work/release.txt` enquanto os
+intermediários existirem; para trocar, apague `geodata/work/` e os `.parquet`
+e rode de novo (com `--release`, ou sem ele para a mais nova). A pasta dos dados pode ser outra com
 `SCRATCH_GEODATA=/caminho`.
 
 Se os ids de estado/país mudarem num rebuild, as visitas antigas param de
@@ -335,9 +337,9 @@ contorno. Para recalcular uma cidade, apague a linha dela em `city_shapes` e
 reinicie.
 
 **O que sai da máquina**: para o mapa, nada. Para o Nominatim
-(`nominatim.openstreetmap.org`) vão só: as coordenadas de um landmark novo
-(`/reverse`, zoom 18, para sugerir o nome) e, na exceção acima, nome, país e
-coordenadas da cidade. Fotos e a lista de visitas nunca
+(`nominatim.openstreetmap.org`) vão só: as coordenadas de um monumento novo
+(`/reverse`, zoom 18, para sugerir o nome) e, na exceção acima (ou para toda
+cidade marcada, no modo Leve), nome, país e coordenadas da cidade. Fotos e a lista de visitas nunca
 saem. Respeitamos a política de uso (no máximo 1 req/s, User-Agent próprio).
 
 ## Instalação
@@ -353,11 +355,11 @@ visita abre o **assistente** (`/setup`, `installer.py`), um cartão por passo
 sobre um mapa-múndi leve girando ao fundo (Natural Earth, domínio público,
 `static/vendor/world-lite.geojson`):
 
-1. **Começar do zero** ou **restaurar um backup** (.zip de outra instalação:
-   visitas, fotos e configurações; serve para migrar).
-2. **Idioma** (por enquanto só PT-BR), **perfil** (nome e foto, opcionais) e
-   **vista inicial** (todas as visitadas ou onde parei; as outras em
-   Configurações, depois).
+1. **Idioma** (lista suspensa no topo do primeiro cartão) e **começar do
+   zero** ou **restaurar um backup** (.zip de outra instalação: visitas, fotos
+   e configurações; serve para migrar).
+2. **Perfil** (nome e foto, opcionais) e **vista inicial** (todas as
+   visitadas ou onde parei; as outras em Configurações, depois).
 3. **Dados do mapa**, montados ali dentro a partir das fontes abertas, com a
    versão mais nova do Overture (ele só mantém as últimas publicadas):
    - **Leve** (~1,9 GB): sem as áreas de cidade do Overture. O contorno de
@@ -435,6 +437,15 @@ de dados. No serviço systemd, copie o unit com outro nome, adicione
 
 ## Operação
 
+Com Docker:
+
+```bash
+docker compose logs -f
+docker compose up -d --build            # depois de atualizar o código
+```
+
+Com o serviço systemd:
+
 ```bash
 systemctl --user status scratch-map
 journalctl --user -u scratch-map -f
@@ -442,7 +453,7 @@ systemctl --user restart scratch-map    # depois de mudar código
 ```
 
 **Backup**: pela tela (Configurações → Backup → "Baixar backup"): um `.zip`
-com o banco (visitas, landmarks, configurações, contornos), as fotos
+com o banco (visitas, monumentos, configurações, contornos), as fotos
 (original, exibição e miniatura), as bandeiras baixadas e a foto de perfil,
 mais um `manifest.json`. A lixeira de fotos fica de fora. O banco é copiado
 pela API de backup do SQLite, então pode ser feito com o app no ar. A tela
@@ -464,7 +475,7 @@ saem junto quando você desmarca um lugar. Para limpar, apague a pasta à mão.
 | Método | Rota | O quê |
 |---|---|---|
 | GET | `/api/visited` | visitados por tipo (explícitos + implícitos), com contagem de fotos |
-| PATCH | `/api/settings` `{theme, color_<tipo>, profile_name, start_view, home_country, start_fixed}` | preferências (`null` volta ao padrão); devolve as atuais |
+| PATCH | `/api/settings` | preferências (chaves da tabela em "Configuração"; `null` volta ao padrão); devolve as atuais |
 | GET | `/api/backup` | baixa o backup (.zip) |
 | GET | `/api/backup/info` | contagens, tamanho e data do último backup |
 | GET | `/api/countries` | países (para a lista de cidades) e o mais visitado |
@@ -500,13 +511,13 @@ saem junto quando você desmarca um lugar. Para limpar, apague a pasta à mão.
 trazem `visited` (conta como visitado) e `explicit` (foi marcado diretamente).
 
 Respostas JSON acima de 2 KB vão com gzip (os contornos de cidade são ~4 MB
-crus, ~1 MB comprimidos), o que pesa fora de casa, pela tailnet.
+crus, ~1 MB comprimidos), o que pesa fora de casa, pela VPN.
 
 ## Decisões
 
 - **Implícito calculado, não gravado.** Assim desmarcar uma cidade "desfaz" o
   estado e o país sem precisar de contagem de referências.
-- **Landmark não marca nada.** Uma foto numa cachoeira não prova que você foi à
+- **Monumento não marca nada.** Uma foto numa cachoeira não prova que você foi à
   cidade mais próxima; a escolha fica no formulário.
 - **Original preservado.** Cada upload guarda o arquivo original
   (`photos/orig`), uma versão de até 2000 px para exibir e uma miniatura de
@@ -515,16 +526,11 @@ crus, ~1 MB comprimidos), o que pesa fora de casa, pela tailnet.
   ficam só nesta máquina.
 - **Uma fonte para país, estado e cidade** (Overture/OSM, recortados pelo mesmo
   litoral) em vez do Natural Earth: com fontes diferentes, as bordas nunca
-  coincidiam. O custo é o build pesado e ~6,3 GB em `geodata/` (mais ~15 GB
-  de intermediários do build, que dá para apagar); para um projeto aberto, a
-  ideia é publicar os arquivos prontos.
+  coincidiam. O custo é o build pesado (~1h30, ~8 GB de RAM) e até ~6,3 GB em
+  `geodata/`. Em vez de hospedar os arquivos prontos, cada instalação monta os
+  seus a partir das fontes abertas (assistente de primeira execução).
 - **Sem login**, de propósito. Não exponha a porta para a internet. O acesso é
-  via LAN ou Tailscale.
-
-## Ideias / próximos passos
-
-- Rótulos de nome no mapa (precisa servir glyphs de fonte para o MapLibre)
-- Deploy no ubuntu-lxc seguindo o padrão `/deploys/<repo>.sh` quando virar repo
+  pela rede local ou por VPN (ex.: Tailscale).
 
 ## Licença
 

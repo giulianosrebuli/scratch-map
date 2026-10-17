@@ -7,7 +7,6 @@ data/
 
 # dados geográficos gerados por scripts/build_geodata.py
 geodata/
-static/geo/
 
 # notas da instalação local (endereços, máquina)
 LOCAL.md
