@@ -57,7 +57,7 @@
       projection: { type: GLOBE ? 'globe' : 'mercator' },
     },
     center: [-30, 10], zoom: 1.6, minZoom: 0.8, maxZoom: 14,
-    attributionControl: false,  // as fontes ficam em Configurações → Fontes do mapa
+    attributionControl: false,  // as fontes ficam em Configurações → Sobre
     dragRotate: false, pitchWithRotate: false,
   });
   map.touchZoomRotate.disableRotation();
