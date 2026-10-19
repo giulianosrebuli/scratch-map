@@ -215,8 +215,10 @@ def compress(resp):
 
 # ------------------------------------------------------------------ app instalável (PWA)
 # Manifesto, service worker (static/sw.js, servido da raiz para valer no site
-# todo) e a página "sem conexão" que ele guarda. Ícone: static/icons/.
-PWA_PATHS = ("/manifest.webmanifest", "/sw.js", "/offline")
+# todo) e a página "sem conexão" que ele guarda. Ícone: static/icons/. Junto,
+# as rotas que também não dependem de perfil nem da instalação: a
+# documentação da API.
+PWA_PATHS = ("/manifest.webmanifest", "/sw.js", "/offline", "/api/docs", "/api/openapi.yaml")
 
 
 @app.get("/manifest.webmanifest")
@@ -241,6 +243,19 @@ def service_worker():
 @app.get("/offline")
 def offline():
     return render_template("offline.html")
+
+
+# ------------------------------------------------------------------ documentação da API
+# docs/openapi.yaml (OpenAPI 3.1), também numa página navegável. Não depende de
+# perfil nem da instalação concluída (PWA_PATHS).
+@app.get("/api/openapi.yaml")
+def openapi_spec():
+    return send_from_directory(ROOT / "docs", "openapi.yaml", mimetype="application/yaml", max_age=0)
+
+
+@app.get("/api/docs")
+def api_docs():
+    return render_template("api-docs.html")
 
 
 # ------------------------------------------------------------------ primeira execução

@@ -217,6 +217,8 @@ scratch-map/
 ├── templates/_navbar.html    # barra de menu na base, comum às telas
 ├── templates/_head.html      # <head> comum: CSS, cores escolhidas, ícone e PWA
 ├── templates/offline.html    # "sem conexão" (guardada pelo service worker)
+├── templates/api-docs.html   # documentação da API (/api/docs)
+├── docs/openapi.yaml         # especificação da API (OpenAPI 3.1)
 ├── static/
 │   ├── common.js             # helpers, foto impressa e lightbox (mapa + mural)
 │   ├── app.js / app.css      # mapa (o CSS serve a todas as páginas)
@@ -229,7 +231,7 @@ scratch-map/
 │   ├── citypicker.js         # lista de cidades (marcar várias; assistente e +)
 │   ├── sw.js                 # service worker (servido em /sw.js): só a página "sem conexão"
 │   ├── icons/                # ícone do app (globo): PWA, iPhone e favicon
-│   └── vendor/               # MapLibre + PMTiles; flags/ = bandeiras (flag-icons, MIT);
+│   └── vendor/               # MapLibre + PMTiles; Redoc (página da API); flags/ = bandeiras (flag-icons, MIT);
 │                             # world-lite.geojson = mundo do fundo do assistente (Natural Earth)
 ├── geodata/                  # gerado, não versionado (veja "Dados geográficos")
 │   ├── world.pmtiles         # tiles de países e estados (~700 MB)
@@ -566,6 +568,15 @@ saem junto quando você desmarca um lugar. Para limpar, apague a pasta à mão.
 
 ## API
 
+Especificação completa (OpenAPI 3.1, com o formato de cada pedido e
+resposta): [`docs/openapi.yaml`](docs/openapi.yaml), também navegável no
+próprio app em **`/api/docs`** (e o arquivo em `/api/openapi.yaml`, para
+importar em outras ferramentas). A tabela abaixo é o resumo.
+
+Para integrações: o perfil é escolhido pelo cookie `perfil=<id>` (com um
+perfil só, não precisa), e não há autenticação, então a porta não deve ficar
+exposta na internet. Ainda não há versão estável das rotas.
+
 | Método | Rota | O quê |
 |---|---|---|
 | GET | `/api/visited` | visitados por tipo (explícitos + implícitos), com contagem de fotos |
@@ -585,6 +596,7 @@ saem junto quando você desmarca um lugar. Para limpar, apague a pasta à mão.
 | POST | `/api/flags/refetch` | busca de novo as bandeiras de estado (409 se desligadas) |
 | POST / DELETE | `/api/profile/photo` | foto de perfil (multipart `photo`) / remove |
 | GET | `/manifest.webmanifest`, `/sw.js`, `/offline` | app instalável (PWA) |
+| GET | `/api/docs`, `/api/openapi.yaml` | documentação da API |
 | DELETE | `/api/profile` | apaga o perfil em uso (move para `data/profiles-removed/`; não o único) |
 | GET | `/perfis` | "quem está usando?"; `/perfis/<id>/usar` escolhe (cookie `perfil`), `/perfis/<id>/foto.jpg` |
 | POST | `/perfis/novo` | cria um perfil e abre o assistente para ele |
