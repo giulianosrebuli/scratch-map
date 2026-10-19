@@ -29,6 +29,7 @@ import boundaries
 import i18n
 import installer
 import profiles
+import version
 import flags as state_flags  # o nome "flags" já é uma função aqui
 
 register_heif_opener()  # fotos .HEIC do iPhone
@@ -385,6 +386,15 @@ def tr(text, **kw):
     return i18n.t(text, lang(), **kw)
 
 
+@app.template_filter("day")
+def fmt_day(iso):
+    """'2026-10-09...' -> 09/10/2026 (pt-BR) ou Oct 9, 2026 (en)."""
+    if not iso:
+        return ""
+    d = dt.date.fromisoformat(str(iso)[:10])
+    return d.strftime("%d/%m/%Y") if lang() == "pt-BR" else f"{d:%b} {d.day}, {d.year}"
+
+
 @app.context_processor
 def inject_prefs():
     # tema, cores e idioma entram no <head> de todas as páginas (templates/_head.html)
@@ -688,8 +698,13 @@ def config():
     countries = db().execute(f"""SELECT co.id, co.name FROM ({VISITED_COUNTRIES_SQL}) v
                                  JOIN countries co ON co.id = v.id ORDER BY co.name""").fetchall()
     geo_v = int(TILES.stat().st_mtime)
+    # dados do mapa (Sobre): montagem de antes do assistente não tem o
+    # geodata.json; aí a data é a do desenho do mapa (o geo.db pode ter sido
+    # atualizado depois, sem remontar)
+    built = installer.manifest().get("built_at") or dt.datetime.fromtimestamp(TILES.stat().st_mtime).isoformat()
     return render_template("config.html", settings=settings(), countries=countries, geo_v=geo_v,
-                           geodata={"mode": installer.mode()} | installer.manifest())
+                           geodata={"mode": installer.mode()} | installer.manifest() | {"built_at": built},
+                           version=version.VERSION, released=version.RELEASED)
 
 
 @app.get("/geo/world.pmtiles")

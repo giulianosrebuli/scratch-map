@@ -8,7 +8,6 @@
 <body class="stats-page" data-projection="{{ prefs.projection }}">
   <header class="topbar">
     <a class="ghost" href="/perfil" title="{{ _('Voltar ao perfil') }}">‹ {{ _('Perfil') }}</a>
-    <h1>{{ _('configurações') }}</h1>
   </header>
 
   <main class="stats-main">
@@ -123,10 +122,6 @@
       <h2 class="config-title">{{ _('Dados e privacidade') }}</h2>
 
       <section class="config-card">
-        <div class="config-row">
-          <span>{{ _('Dados do mapa') }}</span>
-          <span class="hint">{{ _('Leve') if geodata.mode == 'leve' else _('Completo') }}{% if geodata.release %} · Overture {{ geodata.release }}{% endif %}</span>
-        </div>
         <p class="hint">{{ _('Mapa, visitas e fotos ficam só nesta máquina. As exceções são estes pedidos a serviços abertos, cada um com o mínimo necessário. Desligado, o pedido não acontece.') }}</p>
         {% set ext = prefs.external %}
         <ul class="switches" id="external">
@@ -188,6 +183,61 @@
         <button class="btn danger" id="delete-profile">{{ _('Apagar este perfil') }}</button>
       </section>
       {% endif %}
+
+      <h2 class="config-title">{{ _('Sobre') }}</h2>
+
+      <section class="config-card about">
+        <div class="about-app">
+          <img src="/static/icons/icon-192.png" alt="" width="56" height="56">
+          <div>
+            <b>Scratch Map</b>
+            <small><a href="https://github.com/giulianosrebuli/scratch-map" target="_blank" rel="noopener">{{ _('Código-fonte') }}</a> · {{ _('licença MIT') }}</small>
+          </div>
+        </div>
+        <div class="config-row">
+          <span>{{ _('Versão') }}</span>
+          <span class="hint">{{ version or _('em desenvolvimento') }}</span>
+        </div>
+        <div class="config-row">
+          <span>{{ _('Publicada em') }}</span>
+          <span class="hint">{{ released | day if released else '—' }}</span>
+        </div>
+      </section>
+
+      <section class="config-card">
+        <p class="group-title">{{ _('Dados do mapa') }}</p>
+        <div class="config-row">
+          <span>{{ _('Modo') }}</span>
+          <span class="hint">{{ _('Leve') if geodata.mode == 'leve' else _('Completo') }}</span>
+        </div>
+        {% if geodata.release %}
+        <div class="config-row">
+          <span>{{ _('Versão do Overture') }}</span>
+          <span class="hint">{{ geodata.release }}</span>
+        </div>
+        {% endif %}
+        <div class="config-row">
+          <span>{{ _('Montado em') }}</span>
+          <span class="hint">{{ geodata.built_at | day }}</span>
+        </div>
+        <p class="hint">{{ _('O mapa é montado nesta máquina a partir de dados abertos:') }}</p>
+        <ul class="sources">
+          <li><a href="https://overturemaps.org/" target="_blank" rel="noopener">Overture Maps</a>
+            <span>{{ _('países, estados e áreas de cidade') }} · ODbL</span></li>
+          <li><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© {{ _('colaboradores do OpenStreetMap') }}</a>
+            <span>{{ _('litoral e, por dentro do Overture, as divisas') }} · ODbL</span></li>
+          <li><a href="https://www.geonames.org/" target="_blank" rel="noopener">GeoNames</a>
+            <span>{{ _('cidades (busca e ponto)') }} · CC BY 4.0</span></li>
+          <li><a href="https://ourairports.com/" target="_blank" rel="noopener">OurAirports</a>
+            <span>{{ _('aeroportos') }} · {{ _('domínio público') }}</span></li>
+          <li><a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a>
+            <span>{{ _('o mundo do fundo do assistente') }} · {{ _('domínio público') }}</span></li>
+          <li><a href="https://github.com/lipis/flag-icons" target="_blank" rel="noopener">flag-icons</a> · <a href="https://www.wikidata.org/" target="_blank" rel="noopener">Wikidata</a>
+            <span>{{ _('bandeiras de países (MIT) e de estados (Wikimedia Commons)') }}</span></li>
+          <li><a href="https://maplibre.org/" target="_blank" rel="noopener">MapLibre</a>
+            <span>{{ _('desenho do mapa') }} · BSD</span></li>
+        </ul>
+      </section>
     </div>
   </main>
 

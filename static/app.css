@@ -73,7 +73,6 @@ button { font: inherit; color: inherit; cursor: pointer; }
   display: flex; align-items: center; gap: 16px;
   padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--paper);
 }
-.topbar h1 { font-size: 17px; margin: 0; letter-spacing: .02em; white-space: nowrap; }
 /* toggles das camadas: ligado = cor cheia; desligado = apagado */
 .toggles { display: flex; gap: 6px; overflow-x: auto; flex: 1; scrollbar-width: none; }
 .toggles button {
@@ -219,12 +218,10 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
   padding: 4px 8px; border-radius: 6px; font-size: 13px; white-space: nowrap;
 }
 
-.maplibregl-ctrl-attrib { font-size: 10px; }
 
 /* ---------- celular ---------- */
 @media (max-width: 760px) {
   .topbar { flex-wrap: wrap; gap: 8px; padding: 8px 12px; }
-  .topbar h1 { flex: 1; }
   .toggles { order: 3; flex-basis: 100%; gap: 4px; }
   .toggles button { padding: 4px 7px; gap: 4px; font-size: 13px; flex: 1; justify-content: center; }
   .toggles .dot { width: 8px; height: 8px; }
@@ -431,7 +428,6 @@ body.mural-page { background: var(--table); }
 .nav-round[aria-disabled="true"]:hover { transform: none; }
 .nav-round[aria-disabled="true"] svg { opacity: .6; }
 /* créditos do mapa sobem para não ficar sob a barra */
-.map-page .maplibregl-ctrl-bottom-right { bottom: calc(var(--nav-space) - 10px); }
 .navbar { transition: opacity .2s, transform .2s; }
 /* gaveta aberta: a barra sai de cena */
 body.sheet-open .navbar { opacity: 0; transform: translateY(24px); }
@@ -895,3 +891,14 @@ body.no-intro #setup-map, body.no-intro .setup, body.no-intro .setup-card { tran
 .person[aria-current] .avatar { box-shadow: 0 0 0 3px var(--card), 0 0 0 5px var(--ink), 0 4px 14px rgba(0, 0, 0, .14); }
 .person.add .avatar { background: none; border: 2px dashed var(--line); box-shadow: none; }
 .person.add b { color: var(--muted); }
+
+/* fontes do mapa (configurações) */
+.sources { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; font-size: 14px; }
+.sources a { color: var(--ink); font-weight: 600; text-decoration: none; }
+.sources a:hover { text-decoration: underline; }
+.sources span { display: block; color: var(--muted); font-size: 12.5px; }
+.about-app { display: flex; align-items: center; gap: 14px; }
+.about-app img { border-radius: 14px; flex: none; }
+.about-app b { display: block; font-size: 18px; }
+.about-app small { color: var(--muted); font-size: 13px; }
+.about-app a { color: inherit; }
