@@ -56,7 +56,8 @@
       // plano ou globo: escolhido na configuração
       projection: { type: GLOBE ? 'globe' : 'mercator' },
     },
-    center: [-30, 10], zoom: 1.6, minZoom: 0.8, maxZoom: 14,
+    // nasce de longe: o mundo (poucos tiles) já carrega enquanto vêm as visitas
+    center: [-30, 10], zoom: 0.8, minZoom: 0.8, maxZoom: 14,
     attributionControl: false,  // as fontes ficam em Configurações → Sobre
     dragRotate: false, pitchWithRotate: false,
   });
@@ -247,29 +248,50 @@
   //   last: onde o mapa estava da última vez neste aparelho
   //   fixed: centro e zoom gravados (start_fixed = "lon,lat,zoom")
   // Sem start_view: country se houver home_country, senão all.
+  // Ao abrir o app (uma vez por sessão), o mapa começa de longe, sobre o
+  // destino, e desce até a vista inicial; voltando de outra tela, vai direto.
+  // Com "reduzir movimento" no sistema, também vai direto (essential: false).
+  const INTRO_MS = 2400;
   map.on('moveend', () => {
+    if (S.intro) return;  // no meio da descida: não grava o "onde parei"
     const c = map.getCenter();
     store.set('last-view', { center: [c.lng, c.lat], zoom: map.getZoom() });
   });
-  function homeView() {
+  function homeView({ intro = false } = {}) {
+    const show = (cam) => {
+      if (!intro) return map.jumpTo(cam);
+      S.intro = true;
+      map.jumpTo({ center: cam.center, zoom: map.getMinZoom() });
+      // desce quando o mundo de longe já estiver desenhado (ou depois de 2,5 s)
+      let flying = false;
+      const fly = () => {
+        if (flying) return;
+        flying = true;
+        map.once('moveend', () => { S.intro = false; });
+        map.flyTo({ ...cam, duration: INTRO_MS, essential: false });
+      };
+      map.once('idle', fly);
+      setTimeout(fly, 2500);
+    };
     const st = window.SETTINGS || {};
     const mode = st.start_view || (st.home_country ? 'country' : 'all');
     if (mode === 'fixed' && st.start_fixed) {
       const [lon, lat, zoom] = st.start_fixed.split(',').map(Number);
-      return map.jumpTo({ center: [lon, lat], zoom });
+      return show({ center: [lon, lat], zoom });
     }
     const last = mode === 'last' && store.get('last-view', null);
-    if (last) return map.jumpTo(last);
+    if (last) return show(last);
     const home = mode === 'country' && st.home_country;
     let cities = S.visited.city.filter((c) => home && c.country_id === home);
     if (!cities.length) cities = S.visited.city;
-    if (!cities.length) return;
+    if (!cities.length) return show({ center: [-30, 10], zoom: 1.6 });  // nada marcado: o mundo
     const shapes = new Map(S.cityShapes.features.map((f) => [f.properties.id, f]));
     const b = cities.map((c) => {
       const f = shapes.get(String(c.id));
       return f ? bboxOf(f.geometry) : [c.lon, c.lat, c.lon, c.lat];
     }).reduce((a, x) => [Math.min(a[0], x[0]), Math.min(a[1], x[1]), Math.max(a[2], x[2]), Math.max(a[3], x[3])]);
-    map.fitBounds(b, { padding: isMobile() ? 30 : 60, maxZoom: 9, duration: 0 });
+    const cam = map.cameraForBounds(b, { padding: isMobile() ? 30 : 60, maxZoom: 9 });
+    if (cam) show({ center: cam.center, zoom: cam.zoom });
   }
 
   // Enquadra o lugar na parte do mapa que a gaveta não cobre.
@@ -1303,7 +1325,12 @@
     // vindo de outra tela: /?open=kind:id (abre o lugar) ou /?add (abre o +)
     const params = new URLSearchParams(location.search);
     const open = params.get('open');
-    if (!open) homeView();
+    let first = true;  // primeira abertura nesta sessão (aba ou app)
+    try {
+      first = !sessionStorage.getItem('intro');
+      sessionStorage.setItem('intro', '1');
+    } catch { /* sem storage: anima sempre */ }
+    if (!open) homeView({ intro: first && !params.has('scratch') });
     if (params.has('open') || params.has('add') || params.has('scratch')) history.replaceState(null, '', '/');
     if (params.has('scratch')) {
       // vindo da lista de cidades do assistente: o mapa começa em branco e raspa tudo

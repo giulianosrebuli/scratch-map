@@ -140,13 +140,20 @@ systemd de usuário. Acesso pela rede de casa ou por VPN (ex.: Tailscale).
     vivo e "Restaurar cores padrão";
   - **Mapa**: formato (plano ou globo); bordas; vista inicial (cidades
     visitadas num país, todas as visitadas, onde parou, por aparelho, ou uma
-    posição fixa, escolhida arrastando um mapa pequeno ali mesmo);
-  - **Dados e privacidade**: o modo dos dados do mapa (Leve/Completo) e um
+    posição fixa, escolhida arrastando um mapa pequeno ali mesmo). Ao abrir
+    o app (uma vez por sessão), o mapa começa de longe e desce até a vista
+    inicial em ~2,4 s; voltando de outra tela, ou com "reduzir movimento" no
+    sistema, vai direto;
+  - **Dados e privacidade**: um
     liga/desliga para cada pedido que sai da máquina (sugestão de nome do
     monumento e contorno de cidade, no Nominatim; bandeiras de estado, no
     Wikidata/Commons), dizendo o que sai e para quem. Desligado, o pedido não
     acontece;
   - **Backup**: baixar um .zip com tudo; restaurar.
+  - **Perfil**: apagar este perfil (só com mais de um);
+  - **Sobre**, no fim: versão e data de publicação (`version.py`), link do
+    código e, em "Dados do mapa", o modo (Leve/Completo), a versão do
+    Overture, a data da montagem e as fontes com as licenças.
   Fica tudo na tabela `settings` (vale em todos os aparelhos) e entra no
   `<head>` de cada página (`templates/_head.html`).
 - **Globo/plano**: escolhido na configuração (Mapa → Formato). No globo o
