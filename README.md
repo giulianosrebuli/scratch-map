@@ -187,6 +187,7 @@ scratch-map/
 ├── geoshapes.py              # recorte pelo litoral e busca da área de cidade (Overture)
 ├── installer.py              # primeira execução: assistente e montagem dos dados do mapa
 ├── profiles.py               # perfis da casa: uma pasta de dados por pessoa
+├── tlsmux.py                 # HTTP e HTTPS na mesma porta, na frente do gunicorn (opcional)
 ├── i18n.py, i18n/en.json     # tradução (o texto em português é a chave)
 ├── Dockerfile, docker-compose.yml
 ├── setup.sh                  # prepara uma instância do zero (venv + geodata)
@@ -200,7 +201,8 @@ scratch-map/
 ├── templates/config.html     # configurações
 ├── templates/setup.html      # assistente de primeira execução
 ├── templates/_navbar.html    # barra de menu na base, comum às telas
-├── templates/_head.html      # <head> comum: CSS + cores escolhidas
+├── templates/_head.html      # <head> comum: CSS, cores escolhidas, ícone e PWA
+├── templates/offline.html    # "sem conexão" (guardada pelo service worker)
 ├── static/
 │   ├── common.js             # helpers, foto impressa e lightbox (mapa + mural)
 │   ├── app.js / app.css      # mapa (o CSS serve a todas as páginas)
@@ -211,6 +213,8 @@ scratch-map/
 │   ├── setup.js              # assistente de primeira execução (e de perfil novo)
 │   ├── backdrop.js           # fundo do assistente e da escolha de perfil (mundo girando)
 │   ├── citypicker.js         # lista de cidades (marcar várias; assistente e +)
+│   ├── sw.js                 # service worker (servido em /sw.js): só a página "sem conexão"
+│   ├── icons/                # ícone do app (globo): PWA, iPhone e favicon
 │   └── vendor/               # MapLibre + PMTiles; flags/ = bandeiras (flag-icons, MIT);
 │                             # world-lite.geojson = mundo do fundo do assistente (Natural Earth)
 ├── geodata/                  # gerado, não versionado (veja "Dados geográficos")
@@ -231,7 +235,10 @@ scratch-map/
 │   │   ├── backups/          #   cópias automáticas "antes de restaurar" (5 últimas)
 │   │   └── photos/{orig,display,thumb,trash}/
 │   └── profiles-removed/     # perfis apagados (<id>-<data>; dá para trazer de volta à mão)
-└── deploy/scratch-map.service
+└── deploy/
+    ├── scratch-map.service   # unit do systemd (usuário): o gunicorn
+    ├── scratch-map-tls.service  # tlsmux na porta pública (HTTP e HTTPS; opcional)
+    └── renew-cert.sh, scratch-map-cert.{service,timer}  # renova o certificado do Tailscale
 ```
 
 ## Bandeiras
@@ -442,6 +449,47 @@ tem as suas):
 | `borders_country`, `borders_state`, `borders_city` | `1`/`0`: linha branca entre países, entre estados e em volta das cidades. Sem a chave: países e estados ligados, cidades desligado |
 | `ext_landmark_name`, `ext_city_shape`, `ext_state_flags` | `0` = pedido externo desligado (sem a chave: ligado) |
 
+### No celular (app instalável)
+
+O scratch map é um PWA: no celular, dá para pôr na tela inicial e abrir em
+tela cheia, com ícone próprio, como um app. Continua sendo o servidor de casa
+mostrando as telas (nada fica guardado no aparelho além da página "sem
+conexão", mostrada quando o computador não responde).
+
+- **iPhone** (Safari): Compartilhar → "Adicionar à Tela de Início".
+- **Android** (Chrome): menu → "Instalar app".
+
+Para instalar de verdade (e ter o service worker), o Chrome exige **HTTPS**;
+em `http://` vira só um atalho (o Safari aceita HTTP). Com Tailscale, dá para
+ter HTTPS com o certificado válido que ele emite para o nome da máquina na
+tailnet, sem perder o acesso por IP: o `tlsmux.py` fica na porta pública e
+olha o primeiro byte de cada conexão (início de handshake TLS → HTTPS com o
+certificado; qualquer outro → HTTP), repassando ao gunicorn, que passa a
+escutar só em `127.0.0.1:5021`.
+
+| Endereço | |
+|---|---|
+| `https://<máquina>.<tailnet>.ts.net:5020` | HTTPS sem aviso; é o que instala o app no Android |
+| `http://<IP da rede local ou da tailnet>:5020` | HTTP, como sem o tlsmux |
+| `https://<IP>:5020` | abre com aviso de certificado (não existe certificado público para IP) |
+
+Para ligar (systemd de usuário):
+
+```bash
+deploy/renew-cert.sh        # grava ~/.local/share/scratch-map/tls/{cert,key}.pem
+# no scratch-map.service: --bind 127.0.0.1:5021 (veja o comentário no arquivo)
+ln -s ~/projects/scratch-map/deploy/scratch-map-{tls.service,cert.service,cert.timer} ~/.config/systemd/user/
+systemctl --user daemon-reload && systemctl --user restart scratch-map
+systemctl --user enable --now scratch-map-tls scratch-map-cert.timer
+```
+
+O certificado dura 90 dias; o timer `scratch-map-cert` roda o
+`renew-cert.sh` todo dia, e o tlsmux relê o certificado quando ele muda
+(`systemctl --user reload scratch-map-tls`, sem derrubar conexões). Precisa do
+MagicDNS e dos certificados HTTPS ligados no painel do Tailscale, e do seu
+usuário como operador (`sudo tailscale set --operator=$USER`). Não publique
+com o Funnel: o app não tem senha.
+
 ### Outra instância
 
 Para a família, use perfis (acima). Uma instância separada só faz sentido para
@@ -509,6 +557,7 @@ saem junto quando você desmarca um lugar. Para limpar, apague a pasta à mão.
 | POST | `/api/setup/start` | `{mode: "leve" \| "completo"}`: conclui o assistente e começa (ou retoma) a montagem |
 | POST | `/api/flags/refetch` | busca de novo as bandeiras de estado (409 se desligadas) |
 | POST / DELETE | `/api/profile/photo` | foto de perfil (multipart `photo`) / remove |
+| GET | `/manifest.webmanifest`, `/sw.js`, `/offline` | app instalável (PWA) |
 | DELETE | `/api/profile` | apaga o perfil em uso (move para `data/profiles-removed/`; não o único) |
 | GET | `/perfis` | "quem está usando?"; `/perfis/<id>/usar` escolhe (cookie `perfil`), `/perfis/<id>/foto.jpg` |
 | POST | `/perfis/novo` | cria um perfil e abre o assistente para ele |

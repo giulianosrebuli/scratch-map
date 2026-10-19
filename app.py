@@ -211,16 +211,46 @@ def compress(resp):
     return resp
 
 
+# ------------------------------------------------------------------ app instalável (PWA)
+# Manifesto, service worker (static/sw.js, servido da raiz para valer no site
+# todo) e a página "sem conexão" que ele guarda. Ícone: static/icons/.
+PWA_PATHS = ("/manifest.webmanifest", "/sw.js", "/offline")
+
+
+@app.get("/manifest.webmanifest")
+def web_manifest():
+    icons = [{"src": f"/static/icons/icon-{n}.png", "sizes": f"{n}x{n}", "type": "image/png", "purpose": purpose}
+             for n in (192, 512) for purpose in ("any", "maskable")]
+    resp = jsonify(id="/", name="Scratch Map", short_name="Scratch Map", lang=lang(),
+                   description=tr("Seu mapa de raspar: os lugares por onde passou, com as fotos de cada um."),
+                   start_url="/", scope="/", display="standalone", orientation="any",
+                   background_color="#0f1830", theme_color="#fbf8f2", icons=icons)
+    resp.mimetype = "application/manifest+json"
+    return resp
+
+
+@app.get("/sw.js")
+def service_worker():
+    resp = send_from_directory(ROOT / "static", "sw.js", mimetype="text/javascript", max_age=0)
+    resp.headers["Cache-Control"] = "no-cache"
+    return resp
+
+
+@app.get("/offline")
+def offline():
+    return render_template("offline.html")
+
+
 # ------------------------------------------------------------------ primeira execução
 # Enquanto o assistente não terminou (ou o mapa está sendo montado), tudo leva a
 # /setup. Ficam abertos o que o assistente usa: perfil, preferências, restaurar.
 SETUP_OPEN = ("/setup", "/api/setup", "/static/", "/api/restore", "/api/settings",
-              "/api/profile/photo", "/profile.jpg")
+              "/api/profile/photo", "/profile.jpg") + PWA_PATHS
 
 
 # Perfis (profiles.py): o do cookie; com um perfil só, ele mesmo. Com vários e
 # nenhum escolhido, a tela de escolha (que usa o primeiro só para idioma e tema).
-PROFILE_FREE = ("/static/", "/perfis")
+PROFILE_FREE = ("/static/", "/perfis") + PWA_PATHS
 
 
 @app.before_request

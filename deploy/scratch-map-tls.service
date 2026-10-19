@@ -1,0 +1,25 @@
+[Unit]
+Description=Scratch Map - HTTP e HTTPS na porta 5020 (tlsmux.py, na frente do gunicorn)
+After=network-online.target scratch-map.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/projects/scratch-map
+Environment=PYTHONUNBUFFERED=1
+ExecStart=%h/projects/scratch-map/venv/bin/python tlsmux.py --listen 0.0.0.0:5020 --backend 127.0.0.1:5021 --cert %h/.local/share/scratch-map/tls/cert.pem --key %h/.local/share/scratch-map/tls/key.pem
+# relê o certificado (deploy/renew-cert.sh, depois de renovar)
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=5
+MemoryMax=128M
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+
+[Install]
+WantedBy=default.target
