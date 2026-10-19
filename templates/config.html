@@ -88,6 +88,17 @@
       </section>
 
       <section class="config-card">
+        <ul class="switches">
+          <li>
+            <label class="switch-row">
+              <span><b>{{ _('Pular animações') }}</b><small>{{ _('Sem a descida até a vista inicial ao abrir o app e sem a raspagem ao marcar um lugar.') }}</small></span>
+              <input type="checkbox" class="switch" id="skip-animations" {{ 'checked' if prefs.skip_animations }}>
+            </label>
+          </li>
+        </ul>
+      </section>
+
+      <section class="config-card">
         <p class="group-title">{{ _('Vista inicial') }}</p>
         {# sem start_view: o comportamento antigo (país "de casa" se houver, senão todas) #}
         {% set mode = settings.start_view or ('country' if settings.home_country else 'all') %}
@@ -161,28 +172,33 @@
         </ul>
       </section>
 
-      <h2 class="config-title">{{ _('Backup') }}</h2>
+      <h2 class="config-title">{{ _('Perfil') }}</h2>
+
+      <section class="config-card">
+        <p class="hint">{{ _('Um .zip só com as visitas, os monumentos, as fotos e as configurações deste perfil, para levar a outra instalação (lá: Adicionar perfil → Importar um perfil).') }}</p>
+        <a class="btn secondary" id="profile-export" href="/api/profile/export" download>{{ _('Exportar este perfil') }}</a>
+        {% if profile_count > 1 %}
+        <div class="backup-restore">
+          <b>{{ _('Apagar') }}</b>
+          <small>{{ _('Apaga as visitas, os monumentos, as fotos e as configurações deste perfil. Os outros perfis não mudam. A pasta dele fica guardada no servidor, em data/profiles-removed/.') }}</small>
+          <button class="btn danger" id="delete-profile">{{ _('Apagar este perfil') }}</button>
+        </div>
+        {% endif %}
+      </section>
+
+      <h2 class="config-title">{{ _('Backup do servidor') }}</h2>
 
       <section class="config-card" id="backup">
-        <p class="hint">{{ _('Um arquivo .zip com tudo o que é seu: visitas, monumentos, configurações e fotos (as originais). Guarde fora desta máquina.') }}</p>
+        <p class="hint">{{ _('Um .zip com todos os perfis deste servidor: visitas, monumentos, configurações e fotos (as originais). Os dados do mapa ficam de fora: numa instalação nova, o assistente monta de novo. Guarde fora desta máquina.') }}</p>
         <p class="backup-info" id="backup-info">…</p>
         <a class="btn" id="backup-download" href="/api/backup" download>{{ _('Baixar backup') }}</a>
         <div class="backup-restore">
           <b>{{ _('Restaurar') }}</b>
-          <small>{{ _('Troca tudo pelo conteúdo de um backup. Antes, uma cópia do estado atual é guardada no servidor') }} (<code>data/profiles/{{ profile_id }}/backups/</code>).</small>
+          <small>{{ _('Troca todos os perfis pelos do backup. Antes, uma cópia do estado atual é guardada no servidor') }} (<code>data/backups/</code>).</small>
           <button class="btn secondary small" id="restore-btn">{{ _('Escolher arquivo…') }}</button>
           <input type="file" id="restore-file" accept=".zip,application/zip" hidden>
         </div>
       </section>
-
-      {% if profile_count > 1 %}
-      <h2 class="config-title">{{ _('Perfil') }}</h2>
-
-      <section class="config-card">
-        <p class="hint">{{ _('Apaga as visitas, os monumentos, as fotos e as configurações deste perfil. Os outros perfis não mudam. A pasta dele fica guardada no servidor, em data/profiles-removed/.') }}</p>
-        <button class="btn danger" id="delete-profile">{{ _('Apagar este perfil') }}</button>
-      </section>
-      {% endif %}
 
       <h2 class="config-title">{{ _('Sobre') }}</h2>
 

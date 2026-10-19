@@ -702,7 +702,7 @@ canvas.scratch.fade { opacity: 0; }
 
 /* backup */
 .backup-info { margin: 0; font-size: 14px; line-height: 1.5; }
-#backup-download { align-self: flex-start; text-decoration: none; }
+#backup-download, #profile-export { align-self: flex-start; text-decoration: none; }
 .backup-restore { display: flex; flex-direction: column; gap: 4px; border-top: 1px solid var(--line); padding-top: 12px; }
 .backup-restore small { color: var(--muted); font-size: 12.5px; }
 .backup-restore .btn { margin-top: 4px; }

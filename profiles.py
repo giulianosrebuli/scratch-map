@@ -7,11 +7,12 @@ Cada perfil é uma pasta em data/profiles/<id>/ com tudo o que é dele:
   photos/       as fotos (original, exibição, miniatura, lixeira)
   profile.jpg   a foto de perfil
   flags/        bandeiras de estado baixadas
-  backups/      cópias "antes de restaurar"
 
-Da casa toda (fora dos perfis): os dados do mapa (geodata/) e o que o
-assistente decidiu (data/setup.json). Cada aparelho lembra o perfil escolhido
-num cookie; com um perfil só, ele é usado direto, sem perguntar.
+Da casa toda (fora dos perfis): os dados do mapa (geodata/), o que o
+assistente decidiu (data/setup.json) e o backup, que é do servidor inteiro
+(app.py; cópias "antes de restaurar" em data/backups/). Cada aparelho lembra
+o perfil escolhido num cookie; com um perfil só, ele é usado direto, sem
+perguntar.
 
 Apagar um perfil move a pasta para data/profiles-removed/ (dá para desfazer à
 mão). Os ids não são reaproveitados.
@@ -28,7 +29,7 @@ PROFILES = DATA / "profiles"
 REMOVED = DATA / "profiles-removed"
 COOKIE = "perfil"
 # o que era de data/ antes dos perfis e passa a ser do perfil 1
-LEGACY = ("scratch.db", "scratch.db-wal", "scratch.db-shm", "photos", "profile.jpg", "flags", "backups")
+LEGACY = ("scratch.db", "scratch.db-wal", "scratch.db-shm", "photos", "profile.jpg", "flags")
 
 
 class Profile:
@@ -39,7 +40,6 @@ class Profile:
         self.photos = self.dir / "photos"
         self.photo = self.dir / "profile.jpg"
         self.flags = self.dir / "flags"
-        self.backups = self.dir / "backups"
 
     def info(self):
         """Nome e versão da foto, para a tela de escolha."""

@@ -250,7 +250,7 @@
   // Sem start_view: country se houver home_country, senão all.
   // Ao abrir o app (uma vez por sessão), o mapa começa de longe, sobre o
   // destino, e desce até a vista inicial; voltando de outra tela, vai direto.
-  // Com "reduzir movimento" no sistema, também vai direto (essential: false).
+  // Com "Pular animações" no perfil ou "reduzir movimento" no sistema, vai direto.
   const INTRO_MS = 2400;
   map.on('moveend', () => {
     if (S.intro) return;  // no meio da descida: não grava o "onde parei"
@@ -370,7 +370,8 @@
   // película, raspada em zigue-zague como com uma moeda, soltando lascas.
   const SCRATCH_KINDS = ['country', 'state', 'city'];
   const SCRATCH_MS = 5000;   // duração da raspagem
-  const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // sem animação: "Pular animações" no perfil (Configurações) ou "reduzir movimento" no sistema
+  const reducedMotion = () => !!window.PREFS?.skip_animations || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const scratchCv = el('<canvas class="scratch" aria-hidden="true"></canvas>');
   scratchCv.hidden = true;
   $('main').append(scratchCv);
@@ -1330,7 +1331,7 @@
       first = !sessionStorage.getItem('intro');
       sessionStorage.setItem('intro', '1');
     } catch { /* sem storage: anima sempre */ }
-    if (!open) homeView({ intro: first && !params.has('scratch') });
+    if (!open) homeView({ intro: first && !params.has('scratch') && !reducedMotion() });
     if (params.has('open') || params.has('add') || params.has('scratch')) history.replaceState(null, '', '/');
     if (params.has('scratch')) {
       // vindo da lista de cidades do assistente: o mapa começa em branco e raspa tudo

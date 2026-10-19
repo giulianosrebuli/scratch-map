@@ -28,10 +28,11 @@
       <p class="lead">{{ _('Seu mapa de raspar: marque os países, estados e cidades por onde passou e guarde as fotos de cada lugar. Tudo fica nesta máquina.') }}</p>
       <div class="setup-actions">
         <button class="btn" data-go="profile">{{ _('Começar do zero') }}</button>
-        <button class="btn secondary" id="restore-btn">{{ _('Restaurar um backup') }}</button>
+        {# perfil novo: importa um perfil exportado; primeira instalação: restaura o servidor #}
+        <button class="btn secondary" id="restore-btn">{{ _('Importar um perfil') if new_profile else _('Restaurar um backup') }}</button>
         <input type="file" id="restore-file" accept=".zip,application/zip" hidden>
       </div>
-      <p class="hint">{{ _('Tem um backup (.zip) de outra instalação? Ele traz as visitas, as fotos e as configurações.') }}</p>
+      <p class="hint">{% if new_profile %}{{ _('Tem um perfil exportado (.zip) de outra instalação? Ele traz as visitas, as fotos e as configurações.') }}{% else %}{{ _('Tem um backup (.zip) de outra instalação? Ele traz todos os perfis, com as visitas, as fotos e as configurações.') }}{% endif %}</p>
     </section>
 
     <section class="setup-step" data-step="profile" hidden>
