@@ -73,6 +73,7 @@
   for (const sw of document.querySelectorAll('#borders .switch')) {
     sw.addEventListener('change', () => save({ [sw.dataset.key]: sw.checked }));
   }
+  $('#skip-animations').addEventListener('change', (e) => save({ skip_animations: e.target.checked }));
 
   // ------------------------------------------------------------------ dados e privacidade
   const refetch = $('#refetch-flags');
@@ -98,10 +99,12 @@
   const info = $('#backup-info');
   const mb = (n) => `${(n / 1024 / 1024).toLocaleString(locale, { maximumFractionDigits: n > 1e8 ? 0 : 1 })} MB`;
   const when = (iso) => new Date(iso).toLocaleString(locale, { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  let people = [];
   async function loadBackupInfo() {
     try {
       const d = await api('/api/backup/info');
-      info.innerHTML = `${t('{n} lugares marcados', { n: d.visits })} · ${t('{n} monumentos', { n: d.landmarks })} · ${t('{n} fotos', { n: d.photos })} · ~${mb(d.bytes)}<br>`
+      people = d.profiles.map((n) => n || t('Sem nome'));
+      info.innerHTML = `${t(people.length === 1 ? '{n} perfil' : '{n} perfis', { n: people.length })} · ${t('{n} lugares marcados', { n: d.visits })} · ${t('{n} monumentos', { n: d.landmarks })} · ${t('{n} fotos', { n: d.photos })} · ~${mb(d.bytes)}<br>`
         + (d.last_backup ? t('Último backup baixado: {quando}', { quando: when(d.last_backup) }) : `<b>${t('Nenhum backup baixado ainda.')}</b>`);
     } catch (e) {
       info.textContent = t('Não deu para ler: {erro}', { erro: e.message });
@@ -118,7 +121,7 @@
     const f = restoreFile.files[0];
     restoreFile.value = '';
     if (!f) return;
-    if (!confirm(t('Restaurar "{arquivo}"?\n\nTodas as visitas, monumentos, fotos e configurações atuais serão trocadas pelas do backup. Uma cópia do estado atual fica guardada no servidor antes.', { arquivo: f.name }))) return;
+    if (!confirm(t('Restaurar "{arquivo}"?\n\nTodos os perfis deste servidor ({nomes}) serão trocados pelos do backup, com as visitas, os monumentos, as fotos e as configurações. Uma cópia do estado atual fica guardada no servidor antes.', { arquivo: f.name, nomes: people.join(', ') }))) return;
     restoreBtn.disabled = true;
     restoreBtn.textContent = t('Enviando {tamanho}…', { tamanho: mb(f.size) });
     const fd = new FormData();
@@ -128,9 +131,9 @@
       const text = await r.text();
       if (!r.ok) throw new Error(text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200));
       const res = JSON.parse(text);
-      alert(t('Backup restaurado ({lugares} lugares, {fotos} fotos).\nO estado anterior foi guardado em {arquivo}.',
-        { lugares: res.restored.visits, fotos: res.restored.photos, arquivo: `data/profiles/${window.PROFILE}/backups/${res.safety}` }));
-      location.reload();
+      alert(t('Backup restaurado ({perfis} perfis, {lugares} lugares, {fotos} fotos).\nO estado anterior foi guardado em {arquivo}.',
+        { perfis: res.restored.profiles, lugares: res.restored.visits, fotos: res.restored.photos, arquivo: `data/backups/${res.safety}` }));
+      location.href = '/';
     } catch (e) {
       alert(t('Não deu para restaurar: {erro}', { erro: e.message }));
       restoreBtn.disabled = false;

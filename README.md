@@ -1,11 +1,16 @@
 # scratch-map
 
-Mapa pessoal "de raspar" com os lugares visitados: **países, estados, cidades,
-aeroportos e monumentos**, cada tipo com sua cor. Cada lugar pode ter várias
-fotos, mostradas como cópias impressas, com a data na margem branca.
+*A self-hosted digital scratch map.* Um mapa de raspar digital, que roda na
+sua própria máquina.
 
-Uso pessoal e de um usuário só, **sem login**. Para outra pessoa, suba outra
-instância com outro `SCRATCH_DATA` e outra porta (veja abaixo).
+Marque os lugares por onde passou, **países, estados, cidades, aeroportos e
+monumentos**, cada tipo com sua cor, e eles "raspam" no mapa. Cada lugar pode
+ter várias fotos, mostradas como cópias impressas, com a data na margem branca.
+Tudo fica no seu servidor: mapa, visitas e fotos.
+
+Pensado para uma casa: cada pessoa tem o seu **perfil** (visitas, fotos e
+configurações próprias), **sem login**. Ele confia em quem está na rede de
+casa ou na sua VPN.
 
 Roda na porta **`:5020`**, em Docker (veja "Instalação") ou como serviço
 systemd de usuário. Acesso pela rede de casa ou por VPN (ex.: Tailscale).
@@ -64,11 +69,12 @@ systemd de usuário. Acesso pela rede de casa ou por VPN (ex.: Tailscale).
   configurações, sem senha (confia em quem está na rede, como o resto do
   app). Com um perfil só, nada muda: ele é usado direto. Com mais de um, cada
   aparelho pergunta "quem está usando?" uma vez e lembra (cookie); trocar fica
-  no cabeçalho do Perfil. "Adicionar perfil" passa pelo assistente (idioma ou
-  restaurar um backup, nome e foto, vista inicial, lista de cidades), sem a
-  parte dos dados do mapa, que são da casa toda. Apagar fica em
-  Configurações (não com o único perfil) e só move a pasta para
-  `data/profiles-removed/`. O que o navegador guarda (vista "onde parei",
+  no cabeçalho do Perfil. "Adicionar perfil" passa pelo assistente (idioma,
+  nome e foto, vista inicial, lista de cidades; ou **importar um perfil**
+  exportado de outra instalação), sem a parte dos dados do mapa, que são da
+  casa toda. Em Configurações → Perfil: **exportar este perfil** (um .zip só
+  com os dados dele) e apagar (não com o único perfil; só move a pasta para
+  `data/profiles-removed/`). O que o navegador guarda (vista "onde parei",
   camadas, ordem do mural) também é por perfil.
 - **Perfil** (`/perfil`; o antigo `/stats` redireciona): no topo, nome e foto
   de perfil, editáveis ali mesmo (tocar na foto troca; a foto vira um
@@ -142,15 +148,16 @@ systemd de usuário. Acesso pela rede de casa ou por VPN (ex.: Tailscale).
     visitadas num país, todas as visitadas, onde parou, por aparelho, ou uma
     posição fixa, escolhida arrastando um mapa pequeno ali mesmo). Ao abrir
     o app (uma vez por sessão), o mapa começa de longe e desce até a vista
-    inicial em ~2,4 s; voltando de outra tela, ou com "reduzir movimento" no
-    sistema, vai direto;
+    inicial em ~2,4 s; voltando de outra tela vai direto. **Pular animações**
+    (por perfil) tira essa descida e a raspagem ao marcar; "reduzir
+    movimento" no sistema também;
   - **Dados e privacidade**: um
     liga/desliga para cada pedido que sai da máquina (sugestão de nome do
     monumento e contorno de cidade, no Nominatim; bandeiras de estado, no
     Wikidata/Commons), dizendo o que sai e para quem. Desligado, o pedido não
     acontece;
-  - **Backup**: baixar um .zip com tudo; restaurar.
-  - **Perfil**: apagar este perfil (só com mais de um);
+  - **Perfil**: exportar este perfil; apagar;
+  - **Backup do servidor**: baixar um .zip com todos os perfis; restaurar.
   - **Sobre**, no fim: versão e data de publicação (`version.py`), link do
     código e, em "Dados do mapa", o modo (Leve/Completo), a versão do
     Overture, a data da montagem e as fontes com as licenças.
@@ -235,11 +242,12 @@ scratch-map/
 │   └── raw/ work/            # downloads e intermediários do build (dá para apagar)
 ├── data/                     # SEUS DADOS (não versionado — faça backup)
 │   ├── setup.json            # o que o assistente decidiu (concluído, modo): da casa toda
+│   ├── backup.json           # quando foi baixado o último backup do servidor
+│   ├── backups/              # cópias automáticas "antes de restaurar" (3 últimas)
 │   ├── profiles/<id>/        # um por perfil (profiles.py):
 │   │   ├── scratch.db        #   visitas, monumentos, metadados das fotos, limites das cidades, configurações
 │   │   ├── flags/            #   bandeiras de estado baixadas do Wikidata (<ID>.webp)
 │   │   ├── profile.jpg       #   foto de perfil
-│   │   ├── backups/          #   cópias automáticas "antes de restaurar" (5 últimas)
 │   │   └── photos/{orig,display,thumb,trash}/
 │   └── profiles-removed/     # perfis apagados (<id>-<data>; dá para trazer de volta à mão)
 └── deploy/
@@ -387,8 +395,8 @@ sobre um mapa-múndi leve girando ao fundo (Natural Earth, domínio público,
 `static/vendor/world-lite.geojson`):
 
 1. **Idioma** (lista suspensa no topo do primeiro cartão) e **começar do
-   zero** ou **restaurar um backup** (.zip de outra instalação: visitas, fotos
-   e configurações; serve para migrar).
+   zero** ou **restaurar um backup** do servidor (.zip de outra instalação:
+   todos os perfis, com visitas, fotos e configurações; serve para migrar).
 2. **Perfil** (nome e foto, opcionais) e **vista inicial** (todas as
    visitadas ou onde parei; as outras em Configurações, depois).
 3. **Dados do mapa**, montados ali dentro a partir das fontes abertas, com a
@@ -454,6 +462,7 @@ tem as suas):
 | `projection` | `mercator` (plano) ou `globe` |
 | `language` | `pt-BR` ou `en`. Sem a chave: no assistente, o do navegador; depois, `pt-BR` |
 | `borders_country`, `borders_state`, `borders_city` | `1`/`0`: linha branca entre países, entre estados e em volta das cidades. Sem a chave: países e estados ligados, cidades desligado |
+| `skip_animations` | `1`: sem a descida ao abrir e sem a raspagem ao marcar (sem a chave: com animações) |
 | `ext_landmark_name`, `ext_city_shape`, `ext_state_flags` | `0` = pedido externo desligado (sem a chave: ligado) |
 
 ### No celular (app instalável)
@@ -528,20 +537,29 @@ journalctl --user -u scratch-map -f
 systemctl --user restart scratch-map    # depois de mudar código
 ```
 
-**Backup**: é por perfil. Pela tela (Configurações → Backup → "Baixar backup"): um `.zip`
-com o banco (visitas, monumentos, configurações, contornos), as fotos
-(original, exibição e miniatura), as bandeiras baixadas e a foto de perfil,
-mais um `manifest.json`. A lixeira de fotos fica de fora. O banco é copiado
-pela API de backup do SQLite, então pode ser feito com o app no ar. A tela
-mostra quando foi o último baixado.
+**Backup**: é do servidor inteiro. Pela tela (Configurações → Backup do
+servidor → "Baixar backup"): um `.zip` com **todos os perfis**, cada um em
+`profiles/<id>/` com o banco (visitas, monumentos, configurações, contornos),
+as fotos (original, exibição e miniatura), as bandeiras baixadas e a foto de
+perfil, mais um `manifest.json` com a lista dos perfis. Ficam de fora os
+dados do mapa (o assistente monta de novo), o `setup.json` (vale para esta
+máquina) e a lixeira de fotos. O banco é copiado pela API de backup do
+SQLite, então pode ser feito com o app no ar. A tela mostra quando foi o
+último baixado.
 
-**Restaurar**: na mesma tela, escolhendo o `.zip`. O servidor confere que é um
-backup do scratch map (manifesto, banco íntegro, só caminhos conhecidos),
-guarda o estado atual em `data/profiles/<id>/backups/antes-de-restaurar-<data>.zip` (ficam
-as 5 mais recentes) e troca tudo. Para desfazer, restaure essa cópia.
+**Restaurar**: na mesma tela, ou no primeiro cartão do assistente numa
+instalação nova. O servidor confere que é um backup do scratch map
+(manifesto, bancos íntegros, só caminhos conhecidos), guarda o estado atual
+em `data/backups/antes-de-restaurar-<data>.zip` (ficam as 3 mais recentes) e
+troca **todos os perfis** pelos do backup. Para desfazer, restaure essa cópia.
+Um backup de antes dos perfis (ou um perfil exportado) vira o único perfil.
 
-Sem a tela: tudo o que importa está em `data/` (um perfil: `data/profiles/<id>/`).
-Copiar a pasta com o serviço parado também serve.
+**Exportar e importar perfil**: para levar uma pessoa para outra instalação.
+Configurações → Perfil → "Exportar este perfil" baixa um `.zip` só com os
+dados dele; na outra instalação, "Adicionar perfil" → "Importar um perfil".
+
+Sem a tela: tudo o que importa está em `data/profiles/`. Copiar a pasta com o
+serviço parado também serve.
 
 **Fotos apagadas** não somem: vão para `photos/trash/` na pasta do perfil, inclusive as que
 saem junto quando você desmarca um lugar. Para limpar, apague a pasta à mão.
@@ -552,13 +570,15 @@ saem junto quando você desmarca um lugar. Para limpar, apague a pasta à mão.
 |---|---|---|
 | GET | `/api/visited` | visitados por tipo (explícitos + implícitos), com contagem de fotos |
 | PATCH | `/api/settings` | preferências (chaves da tabela em "Configuração"; `null` volta ao padrão); devolve as atuais |
-| GET | `/api/backup` | baixa o backup (.zip) |
-| GET | `/api/backup/info` | contagens, tamanho e data do último backup |
+| GET | `/api/backup` | baixa o backup do servidor (.zip com todos os perfis) |
+| GET | `/api/backup/info` | perfis, contagens, tamanho e data do último backup |
+| GET | `/api/profile/export` | baixa o perfil em uso (.zip, para importar em outra instalação) |
+| POST | `/api/profile/import` | preenche um perfil novo com um perfil exportado (multipart `backup`) |
 | GET | `/api/countries` | países (para a lista de cidades) e o mais visitado |
 | GET | `/api/names` | nome de cada país (no idioma) e estado, para o hover do mapa |
 | GET | `/api/cities` | `?country=&state=&q=&offset=`: cidades, maiores primeiro, 50 por vez (e os estados do país na 1ª página) |
 | POST | `/api/visits/batch` | `{ids: [...]}`: marca várias cidades; contornos em segundo plano |
-| POST | `/api/restore` | restaura de um backup (multipart `backup`); guarda o estado atual antes |
+| POST | `/api/restore` | troca todos os perfis pelos do backup (multipart `backup`); guarda o estado atual antes |
 | GET | `/setup` | assistente de primeira execução (depois de instalado, leva ao mapa) |
 | GET | `/api/setup` | estado do assistente e da montagem (etapas, mensagem, erro) |
 | POST | `/api/setup/start` | `{mode: "leve" \| "completo"}`: conclui o assistente e começa (ou retoma) a montagem |

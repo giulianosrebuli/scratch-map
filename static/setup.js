@@ -1,5 +1,6 @@
 /* scratch map — assistente de primeira execução (/setup, installer.py).
-   Um passo por vez: boas-vindas (idioma; começar ou restaurar um backup) →
+   Um passo por vez: boas-vindas (idioma; começar, restaurar um backup do
+   servidor ou, num perfil novo, importar um perfil exportado) →
    perfil → vista inicial → dados do mapa → montagem (progresso) → lista de
    cidades. Cada escolha é gravada na hora; "Montar o mapa" começa a montagem
    no servidor. Perfil novo (com o mapa já montado): sem os dados e a montagem,
@@ -97,9 +98,13 @@
     try {
       const fd = new FormData();
       fd.append('backup', f);
-      const r = await fetch('/api/restore', { method: 'POST', body: fd });
+      const r = await fetch(newProfile ? '/api/profile/import' : '/api/restore', { method: 'POST', body: fd });
       if (!r.ok) throw new Error((await r.text()).replace(/<[^>]+>/g, ' ').trim());
       const res = await r.json();
+      if (newProfile) {
+        location.href = '/';  // perfil importado: pronto, direto para o mapa
+        return;
+      }
       // a página volta com o nome, a foto e as preferências do backup
       location.href = `/setup?restored=${res.restored.visits || 0},${res.restored.photos || 0}`;
     } catch (e) {
@@ -215,7 +220,7 @@
   // ------------------------------------------------------------------ início
   const restored = params.get('restored');
   if (newProfile) {
-    go('welcome');  // perfil novo (restaurar um backup leva direto ao mapa)
+    go('welcome');  // perfil novo (importar um perfil leva direto ao mapa)
   } else if (state.done) {
     go('build');
   } else if (restored) {

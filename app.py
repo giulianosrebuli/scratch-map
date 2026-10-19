@@ -12,6 +12,7 @@ import json
 import logging
 import math
 import os
+import re
 import shutil
 import sqlite3
 import tempfile
@@ -364,6 +365,7 @@ def prefs():
         "projection": st.get("projection") if st.get("projection") in PROJECTIONS else "mercator",
         "external": {k: st.get(k) != "0" for k in EXTERNAL},
         "borders": {k: st[k] == "1" if k in st else d for k, d in BORDERS.items()},
+        "skip_animations": st.get("skip_animations") == "1",
     }
 
 
@@ -425,7 +427,7 @@ def set_setting(key, value):
 def patch_settings():
     """Grava preferências. `null` volta ao padrão. Chaves aceitas: theme,
     color_<tipo> (#rrggbb), profile_name, start_view, home_country,
-    start_fixed, projection, language, ext_* e borders_* (true/false)."""
+    start_fixed, projection, language, ext_*, borders_* e skip_animations (true/false)."""
     import re
     body = request.get_json(force=True) or {}
     for key, value in body.items():
@@ -451,6 +453,8 @@ def patch_settings():
             set_setting(key, None if value else "0")
         elif key in BORDERS and isinstance(value, bool):
             set_setting(key, "1" if value else "0")
+        elif key == "skip_animations" and isinstance(value, bool):
+            set_setting(key, "1" if value else None)
         else:
             abort(400, f"configuração inválida: {key}")
     db().commit()
@@ -544,15 +548,20 @@ def delete_profile():
     return resp
 
 
-# ------------------------------------------------------------------ backup
-# Um .zip com tudo o que é seu: o banco (visitas, landmarks, fotos, configuração,
-# contornos de cidade), as fotos (original + exibição + miniatura), as bandeiras
-# baixadas e a foto de perfil. A lixeira de fotos fica de fora. Restaurar troca
-# tudo pelo conteúdo do .zip, depois de guardar uma cópia do estado atual em
-# backups/ do perfil.
-BACKUP_DIRS = ("photos/orig", "photos/display", "photos/thumb", "flags")
-BACKUP_FILES = ("manifest.json", "scratch.db", "profile.jpg")
-KEEP_SAFETY = 5   # cópias "antes de restaurar" guardadas (as mais antigas saem)
+# ------------------------------------------------------------------ backup, exportar e importar perfil
+# Backup é do servidor: um .zip com todos os perfis (profiles/<id>/: banco,
+# fotos — original, exibição e miniatura —, bandeiras e foto de perfil).
+# Fica de fora o que se refaz ou não é de ninguém: os dados do mapa (geodata/,
+# o assistente monta de novo), o setup.json (vale para esta máquina), a
+# lixeira de fotos e as cópias "antes de restaurar". Restaurar troca todos os
+# perfis, depois de guardar o estado atual em data/backups/.
+# Exportar/importar perfil: um perfil só, na raiz do .zip (o formato dos
+# backups de antes dos perfis): leva uma pessoa para outra instalação.
+PROFILE_DIRS = ("photos/orig", "photos/display", "photos/thumb", "flags")
+PROFILE_FILES = ("scratch.db", "profile.jpg")
+BACKUPS = DATA / "backups"
+BACKUP_STATE = DATA / "backup.json"   # quando foi baixado o último backup
+KEEP_SAFETY = 3   # cópias "antes de restaurar" guardadas (as mais antigas saem)
 
 
 def backup_counts(con):
@@ -561,125 +570,234 @@ def backup_counts(con):
             "landmarks": one("SELECT COUNT(*) FROM landmarks WHERE draft = 0")}
 
 
-def write_backup(path):
-    """Grava o .zip em path. O banco é copiado pela API de backup do SQLite
-    (cópia consistente mesmo com o app no ar)."""
-    with tempfile.TemporaryDirectory(dir=prof().dir) as tmp:
-        dbcopy = Path(tmp) / "scratch.db"
-        src, dst = sqlite3.connect(prof().db), sqlite3.connect(dbcopy)
-        try:
-            src.backup(dst)
-            counts = backup_counts(dst)
-        finally:
-            src.close()
-            dst.close()
-        manifest = {"app": "scratch-map", "format": 1, "created_at": dt.datetime.now().isoformat(timespec="seconds"),
-                    **counts}
-        with zipfile.ZipFile(path, "w") as z:
-            z.writestr("manifest.json", json.dumps(manifest, indent=2))
-            z.write(dbcopy, "scratch.db", compress_type=zipfile.ZIP_DEFLATED)
-            for part in BACKUP_DIRS:  # jpg/webp já são comprimidos: só guarda
-                for f in sorted((prof().dir / part).glob("*")):
-                    if f.is_file():
-                        z.write(f, f"{part}/{f.name}")
-            if prof().photo.exists():
-                z.write(prof().photo, "profile.jpg")
+def add_profile(z, p, prefix, tmp):
+    """Grava o perfil p no zip, sob prefix. O banco é copiado pela API de
+    backup do SQLite (cópia consistente mesmo com o app no ar)."""
+    dbcopy = Path(tmp) / f"{p.id}.db"
+    src, dst = sqlite3.connect(p.db), sqlite3.connect(dbcopy)
+    try:
+        src.backup(dst)
+        counts = backup_counts(dst)
+    finally:
+        src.close()
+        dst.close()
+    z.write(dbcopy, f"{prefix}scratch.db", compress_type=zipfile.ZIP_DEFLATED)
+    dbcopy.unlink()
+    for part in PROFILE_DIRS:  # jpg/webp já são comprimidos: só guarda
+        for f in sorted((p.dir / part).glob("*")):
+            if f.is_file():
+                z.write(f, f"{prefix}{part}/{f.name}")
+    if p.photo.exists():
+        z.write(p.photo, f"{prefix}profile.jpg")
+    return {"name": p.info()["name"], **counts}
+
+
+def manifest_base(kind, fmt):
+    return {"app": "scratch-map", "format": fmt, "kind": kind, "created_at": dt.datetime.now().isoformat(timespec="seconds")}
+
+
+def write_server_backup(path):
+    with tempfile.TemporaryDirectory(dir=DATA) as tmp, zipfile.ZipFile(path, "w") as z:
+        people = [{"id": p.id, **add_profile(z, p, f"profiles/{p.id}/", tmp)} for p in profiles.list_all()]
+        manifest = manifest_base("server", 2) | {"profiles": people}
+        z.writestr("manifest.json", json.dumps(manifest, indent=2, ensure_ascii=False))
     return manifest
 
 
-@app.get("/api/backup/info")
-def backup_info():
-    size = prof().db.stat().st_size + sum(f.stat().st_size for part in BACKUP_DIRS
-                                   for f in (prof().dir / part).glob("*") if f.is_file())
-    return jsonify(**backup_counts(db()), bytes=size, last_backup=settings().get("last_backup"))
+def write_profile_export(path, p):
+    with tempfile.TemporaryDirectory(dir=DATA) as tmp, zipfile.ZipFile(path, "w") as z:
+        manifest = manifest_base("profile", 1) | add_profile(z, p, "", tmp)
+        z.writestr("manifest.json", json.dumps(manifest, indent=2, ensure_ascii=False))
+    return manifest
 
 
-@app.get("/api/backup")
-def download_backup():
-    fd, tmp = tempfile.mkstemp(suffix=".zip", dir=prof().dir)
+def send_zip(write, name):
+    fd, tmp = tempfile.mkstemp(suffix=".zip", dir=DATA)
     os.close(fd)
-    write_backup(tmp)
-    set_setting("last_backup", dt.datetime.now().isoformat(timespec="seconds"))
-    db().commit()
+    write(tmp)
     # abre e já apaga do disco: o espaço é liberado quando o envio termina
     # (e não sobra arquivo se o download for interrompido)
     fh = open(tmp, "rb")
     os.unlink(tmp)
-    return send_file(fh, mimetype="application/zip", as_attachment=True,
-                     download_name=f"scratch-map-backup-{dt.date.today().isoformat()}.zip")
+    return send_file(fh, mimetype="application/zip", as_attachment=True, download_name=name)
 
 
-def backup_member_ok(name):
-    """Só caminhos conhecidos (nada de ../ ou pastas fora de data/)."""
-    if name in BACKUP_FILES or name.endswith("/"):
+def server_counts():
+    out = {"profiles": [], "visits": 0, "photos": 0, "landmarks": 0, "bytes": 0}
+    for p in profiles.list_all():
+        con = sqlite3.connect(f"file:{p.db}?mode=ro", uri=True)
+        try:
+            c = backup_counts(con)
+        finally:
+            con.close()
+        for k in ("visits", "photos", "landmarks"):
+            out[k] += c[k]
+        out["profiles"].append(p.info()["name"])
+        out["bytes"] += p.db.stat().st_size + sum(f.stat().st_size for part in PROFILE_DIRS
+                                                  for f in (p.dir / part).glob("*") if f.is_file())
+    return out
+
+
+@app.get("/api/backup/info")
+def backup_info():
+    try:
+        last = json.loads(BACKUP_STATE.read_text()).get("last_backup")
+    except (OSError, ValueError):
+        last = None
+    return jsonify(**server_counts(), last_backup=last)
+
+
+@app.get("/api/backup")
+def download_backup():
+    resp = send_zip(write_server_backup, f"scratch-map-backup-{dt.date.today().isoformat()}.zip")
+    BACKUP_STATE.write_text(json.dumps({"last_backup": dt.datetime.now().isoformat(timespec="seconds")}))
+    return resp
+
+
+@app.get("/api/profile/export")
+def export_profile():
+    name = re.sub(r"[^\w-]+", "-", prof().info()["name"].lower()).strip("-") or f"perfil-{prof().id}"
+    return send_zip(lambda path: write_profile_export(path, prof()),
+                    f"scratch-map-{name}-{dt.date.today().isoformat()}.zip")
+
+
+def profile_member_ok(rest):
+    """Só caminhos conhecidos dentro de um perfil (nada de ../)."""
+    if rest in PROFILE_FILES or rest == "" or rest.endswith("/"):
         return True
-    folder, _, file = name.rpartition("/")
-    return folder in BACKUP_DIRS and file not in ("", ".", "..") and "\\" not in file
+    folder, _, file = rest.rpartition("/")
+    return folder in PROFILE_DIRS and file not in ("", ".", "..") and "\\" not in file
+
+
+def open_backup(upload, tmp):
+    """(zip, manifesto, {id do perfil no .zip: prefixo}) de um .zip enviado,
+    conferido: é do scratch map, só caminhos conhecidos, bancos íntegros.
+    Backup do servidor: um prefixo por perfil; perfil exportado (ou backup de
+    antes dos perfis): o perfil na raiz."""
+    zpath = Path(tmp) / "in.zip"
+    upload.save(zpath)
+    try:
+        z = zipfile.ZipFile(zpath)
+    except zipfile.BadZipFile:
+        abort(400, tr("o arquivo não é um .zip"))
+    names = z.namelist()
+    try:
+        manifest = json.loads(z.read("manifest.json"))
+    except (KeyError, ValueError):
+        manifest = {}
+    if manifest.get("app") != "scratch-map":
+        abort(400, tr("não é um backup do scratch map"))
+    if manifest.get("format") == 2:
+        parts = {}
+        for n in names:
+            if n == "manifest.json":
+                continue
+            m = re.fullmatch(r"profiles/(\d+)/(.*)", n)
+            if not m or not profile_member_ok(m[2]):
+                abort(400, tr("o backup tem arquivos inesperados: {nomes}", nomes=n))
+            parts[m[1]] = f"profiles/{m[1]}/"
+    else:
+        bad = [n for n in names if n != "manifest.json" and not profile_member_ok(n)]
+        if bad:
+            abort(400, tr("o backup tem arquivos inesperados: {nomes}", nomes=", ".join(bad[:3])))
+        parts = {"1": ""}
+    for pid, prefix in parts.items():
+        if f"{prefix}scratch.db" not in names:
+            abort(400, tr("não é um backup do scratch map"))
+        z.extract(f"{prefix}scratch.db", Path(tmp) / "check" / pid)
+        chk = sqlite3.connect(Path(tmp) / "check" / pid / f"{prefix}scratch.db")
+        try:
+            ok = chk.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+            chk.execute("SELECT kind, ref_id FROM visits LIMIT 1")
+        except sqlite3.DatabaseError:
+            ok = False
+        finally:
+            chk.close()
+        if not ok:
+            abort(400, tr("o banco dentro do backup está corrompido"))
+    return z, manifest, parts
+
+
+def extract_profile(z, prefix, dest):
+    for part in PROFILE_DIRS:
+        (dest / part).mkdir(parents=True, exist_ok=True)
+    for n in z.namelist():
+        rest = n[len(prefix):] if n.startswith(prefix) else None
+        if not rest or rest.endswith("/") or n == "manifest.json":
+            continue
+        with z.open(n) as src_f, open(dest / rest, "wb") as out:
+            shutil.copyfileobj(src_f, out)
+
+
+def totals(con_paths):
+    t = {"visits": 0, "photos": 0}
+    for path in con_paths:
+        con = sqlite3.connect(path)
+        try:
+            c = backup_counts(con)
+        finally:
+            con.close()
+        t["visits"] += c["visits"]
+        t["photos"] += c["photos"]
+    return t
 
 
 @app.post("/api/restore")
 def restore_backup():
-    """Troca os dados pelos do .zip. Antes, guarda o estado atual em backups/ do perfil."""
+    """Troca todos os perfis pelos do .zip (um perfil exportado, ou um backup de
+    antes dos perfis, vira o único perfil). Antes, guarda o estado atual em
+    data/backups/."""
     f = request.files.get("backup") or abort(400, tr("nenhum arquivo"))
-    with tempfile.TemporaryDirectory(dir=prof().dir) as tmp:
-        zpath = Path(tmp) / "in.zip"
-        f.save(zpath)
-        try:
-            z = zipfile.ZipFile(zpath)
-        except zipfile.BadZipFile:
-            abort(400, tr("o arquivo não é um .zip"))
+    with tempfile.TemporaryDirectory(dir=DATA) as tmp:
+        z, manifest, parts = open_backup(f, tmp)
+        staged = Path(tmp) / "profiles"
         with z:
-            names = z.namelist()
-            try:
-                manifest = json.loads(z.read("manifest.json"))
-            except (KeyError, ValueError):
-                manifest = {}
-            if manifest.get("app") != "scratch-map" or "scratch.db" not in names:
-                abort(400, tr("não é um backup do scratch map"))
-            bad = [n for n in names if not backup_member_ok(n)]
-            if bad:
-                abort(400, tr("o backup tem arquivos inesperados: {nomes}", nomes=", ".join(bad[:3])))
-            z.extract("scratch.db", tmp)
-            newdb = Path(tmp) / "scratch.db"
-            chk = sqlite3.connect(newdb)
-            try:
-                ok = chk.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
-                chk.execute("SELECT kind, ref_id FROM visits LIMIT 1")
-            except sqlite3.DatabaseError:
-                ok = False
-            finally:
-                chk.close()
-            if not ok:
-                abort(400, tr("o banco dentro do backup está corrompido"))
-
-            # rede de segurança: o estado atual, antes de trocar
-            prof().backups.mkdir(exist_ok=True)
-            safety = prof().backups / f"antes-de-restaurar-{dt.datetime.now():%Y-%m-%d-%H%M%S}.zip"
-            write_backup(safety)
-            for old in sorted(prof().backups.glob("antes-de-restaurar-*.zip"))[:-KEEP_SAFETY]:
-                old.unlink()
-
-            src, dst = sqlite3.connect(newdb), sqlite3.connect(prof().db)
-            try:
-                src.backup(dst)  # troca o conteúdo do banco em uso, sem apagar o arquivo
-            finally:
-                src.close()
-                dst.close()
-            for part in BACKUP_DIRS:
-                shutil.rmtree(prof().dir / part, ignore_errors=True)
-                (prof().dir / part).mkdir(parents=True)
-            prof().photo.unlink(missing_ok=True)
-            for n in names:
-                if n.endswith("/") or n in ("manifest.json", "scratch.db"):
-                    continue
-                with z.open(n) as src_f, open(prof().dir / n, "wb") as out:
-                    shutil.copyfileobj(src_f, out)
-    init_storage()  # backup mais antigo: cria as tabelas que faltarem
+            for pid, prefix in parts.items():
+                extract_profile(z, prefix, staged / pid)
+        # rede de segurança: o estado atual, antes de trocar
+        BACKUPS.mkdir(exist_ok=True)
+        safety = BACKUPS / f"antes-de-restaurar-{dt.datetime.now():%Y-%m-%d-%H%M%S}.zip"
+        write_server_backup(safety)
+        for old in sorted(BACKUPS.glob("antes-de-restaurar-*.zip"))[:-KEEP_SAFETY]:
+            old.unlink()
+        close_db(None)
+        if profiles.PROFILES.exists():
+            os.replace(profiles.PROFILES, Path(tmp) / "old-profiles")  # some com o tmp
+        os.replace(staged, profiles.PROFILES)
+    each_profile(init_storage)  # backup mais antigo: cria as tabelas que faltarem
     if installed():
         geo_ready()  # bandeiras e contornos que o backup não tiver
-    log = logging.getLogger("scratch-map")
-    log.info("backup restaurado (%s); estado anterior em %s", manifest.get("created_at"), safety.name)
-    return jsonify(ok=True, restored=manifest, safety=safety.name)
+    every = profiles.list_all()
+    restored = {"profiles": len(every), **totals(p.db for p in every)}
+    logging.getLogger("scratch-map").info("backup restaurado (%s); estado anterior em %s",
+                                          manifest.get("created_at"), safety.name)
+    resp = jsonify(ok=True, restored=restored, safety=safety.name)
+    if profiles.get(request.cookies.get(profiles.COOKIE)) is None:
+        use(resp, every[0])  # o perfil escolhido não existe mais: o primeiro
+    return resp
+
+
+@app.post("/api/profile/import")
+def import_profile():
+    """Assistente de perfil novo: preenche o perfil (ainda vazio) com um perfil
+    exportado de outra instalação."""
+    if not settings().get("setup_pending"):
+        abort(409, tr("só dá para importar num perfil novo"))
+    f = request.files.get("backup") or abort(400, tr("nenhum arquivo"))
+    with tempfile.TemporaryDirectory(dir=DATA) as tmp:
+        z, manifest, parts = open_backup(f, tmp)
+        if manifest.get("format") == 2:
+            abort(400, tr("este arquivo é um backup do servidor inteiro: ele se restaura em Configurações → Backup"))
+        staged = Path(tmp) / "profile"
+        with z:
+            extract_profile(z, "", staged)
+        close_db(None)
+        os.replace(prof().dir, Path(tmp) / "old-profile")  # o perfil vazio some com o tmp
+        os.replace(staged, prof().dir)
+    init_storage()
+    if installed():
+        geo_ready_profile()
+    return jsonify(ok=True, imported=totals([prof().db]))
 
 
 @app.get("/perfil")
