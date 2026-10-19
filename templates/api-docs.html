@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>API · Scratch Map</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/icons/favicon-32.png">
+  {# documentação da API (docs/openapi.yaml) com o Redoc guardado em
+     static/vendor/: a página não busca nada fora da máquina #}
+  <style>body { margin: 0; }</style>
+</head>
+<body>
+  <div id="redoc"></div>
+  <script src="{{ url_for('static', filename='vendor/redoc.standalone.js') }}"></script>
+  <script>
+    Redoc.init('/api/openapi.yaml', {
+      hideHostname: true,
+      expandResponses: '200',
+      theme: {
+        typography: { fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
+                      headings: { fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif' } },
+        colors: { primary: { main: '#2b2a27' } },
+        sidebar: { backgroundColor: '#fbf8f2' },
+      },
+    }, document.getElementById('redoc'));
+  </script>
+</body>
+</html>
