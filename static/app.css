@@ -955,6 +955,7 @@ body.no-intro #setup-map, body.no-intro .setup, body.no-intro .setup-card { tran
 .board-svg .callout text { fill: #cbbd96; }
 .board-svg .callout.on text { fill: #fff; font-weight: 700; }
 .board-svg .item text { fill: #cbbd96; }
+.board-svg .item .abbr { fill: #8f8466; font-weight: 700; letter-spacing: .06em; }
 .board-svg .item.on text { fill: #f3e7c6; font-weight: 700; }
 .board-actions {
   position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(96px + env(safe-area-inset-bottom)); z-index: 30;

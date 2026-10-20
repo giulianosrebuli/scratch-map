@@ -119,7 +119,8 @@
       const name = up(m.name.length > L.cut ? `${m.name.slice(0, L.cut - 1)}…` : m.name);
       return `<g class="item" data-id="${esc(m.id)}"><title>${esc(m.name)}</title>
         <rect class="swatch" x="${x}" y="${y - L.size * 0.62}" width="${L.size * 1.15}" height="${L.size * 0.62}" rx="2"/>
-        <text x="${x + L.size * 1.5}" y="${y}" font-size="${L.size}">${esc(name)}${m.off ? ' *' : ''}</text></g>`;
+        <text x="${x + L.size * 1.5}" y="${y}" font-size="${L.size * 0.82}" class="abbr">${esc(m.abbr)}</text>
+        <text x="${x + L.size * 4.2}" y="${y}" font-size="${L.size}">${esc(name)}${m.off ? ' *' : ''}</text></g>`;
     }).join('');
 
     const svg = document.createElementNS(NS, 'svg');
@@ -138,11 +139,11 @@
         const c = m.callout, left = c.side === 'left';
         return `<g class="callout" data-id="${esc(m.id)}"><polyline points="${c.path}"/>
           <circle cx="${c.tx}" cy="${c.ty}" r="2.2"/>
-          <text x="${c.x}" y="${c.y}" font-size="${c.size}" text-anchor="${left ? 'end' : 'start'}" dominant-baseline="middle">${esc(up(m.name))}</text></g>`;
+          <text x="${c.x}" y="${c.y}" font-size="${c.size}" text-anchor="${left ? 'end' : 'start'}" dominant-baseline="middle">${esc(m.abbr)}</text></g>`;
       }).join('')}</g>
       <g class="labels">${b.members.filter((m) => m.label).map((m) => {
-        const l = m.label, lh = l.size * 1.15, y0 = l.y - ((l.lines.length - 1) * lh) / 2;
-        return `<text class="label" data-id="${esc(m.id)}" x="${l.x}" font-size="${l.size}" text-anchor="middle"${l.rotate ? ` transform="rotate(${l.rotate} ${l.x} ${l.y})"` : ''}>${l.lines.map((s, i) => `<tspan x="${l.x}" y="${y0 + i * lh}" dominant-baseline="middle">${esc(up(s))}</tspan>`).join('')}</text>`;
+        const l = m.label;  // no mapa, só a sigla (o nome por extenso fica na lista)
+        return `<text class="label" data-id="${esc(m.id)}" x="${l.x}" y="${l.y}" font-size="${l.size}" text-anchor="middle" dominant-baseline="middle"><title>${esc(m.name)}</title>${esc(m.abbr)}</text>`;
       }).join('')}</g>`;
     root.append(el('<div class="board-wrap"></div>'));
     $('.board-wrap', root).append(svg);

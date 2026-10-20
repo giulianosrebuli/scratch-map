@@ -29,9 +29,9 @@ CANVAS = (1500, 1000)
 LIST = (100, 290, 900)      # lista: x, topo, fim
 MAP_Y = (95, 905)           # o mapa começa depois da lista e vai até MAP_X1
 MAP_X1 = 1410
-GUTTER = 135      # margem para os nomes com traço (só do lado que precisar)
-LABEL_SIZES = (21, 18, 15.5, 13, 11.5)
-CALLOUT_SIZE = 15
+GUTTER = 80       # margem para as siglas com traço (só do lado que precisar)
+LABEL_SIZES = (24, 21, 18, 15.5, 13, 11.5)
+CALLOUT_SIZE = 16
 CALLOUT_GAP = 19  # distância mínima entre nomes na margem
 CAPS = 0.68       # largura média de uma letra em caixa alta (× tamanho da letra)
 STUB = 12         # trecho reto do traço ao chegar no nome
@@ -106,31 +106,35 @@ def candidates(poly, pole, k=24):
     return [(pole.x, pole.y)] + [(p.x, p.y) for p in inside[:k]]
 
 
-def fit_text(poly, points, name, taken, sizes=LABEL_SIZES):
-    """(x, y, tamanho, linhas) do nome dentro do polígono, no primeiro ponto
-    em que cabe (a letra maior primeiro), sem encostar nos nomes já postos
-    (`taken`, retângulos)."""
-    words = name.split()
-    options = [[name]]
-    if len(words) > 1:  # quebra em duas linhas no espaço mais perto do meio
-        best = min(range(1, len(words)), key=lambda i: abs(len(" ".join(words[:i])) - len(" ".join(words[i:]))))
-        options.append([" ".join(words[:best]), " ".join(words[best:])])
-    inner = poly.buffer(-1.5)
-    # deitado primeiro; em pé (girado 90°) só se não couber deitado de jeito
-    # nenhum: porção comprida e estreita, como o Tocantins
-    for vertical in (False, True):
-        for size in sizes:
-            for cx, cy in points:
-                for lines in options:
-                    w = max(len(t) for t in lines) * size * CAPS
-                    h = len(lines) * size * 1.15
-                    if vertical:
-                        w, h = h, w
-                    r = box(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)
-                    # como nos pôsteres: pode passar um pouco da borda (Itália, Noruega)
-                    if inner.intersection(r).area >= 0.75 * r.area and not any(r.intersects(o) for o in taken):
-                        taken.append(r.buffer(2))
-                        return cx, cy, size, lines, vertical
+MINOR = {"de", "do", "da", "dos", "das", "e", "del", "la", "los", "las", "el", "of", "the", "di", "du", "des", "le"}
+
+
+def abbr(pid, name):
+    """Sigla da porção no mapa: o código depois do hífen (BR-SP → SP) ou o
+    próprio código do país (AR); sem código curto, as iniciais das palavras
+    que contam (como no álbum do Perfil)."""
+    code = pid.split("-", 1)[1] if "-" in pid and len(pid) < 12 else pid
+    if 1 < len(code) <= 3 and code.isalpha():
+        return code.upper()
+    words = [w for w in name.replace("-", " ").split() if w.lower() not in MINOR]
+    if len(words) > 1:
+        return "".join(w[0] for w in words[:3]).upper()
+    return (words[0] if words else name)[:3].upper()
+
+
+def fit_text(poly, points, text, taken, sizes=LABEL_SIZES):
+    """(x, y, tamanho) da sigla inteira dentro do polígono, deitada, no
+    primeiro ponto em que cabe (a letra maior primeiro), sem encostar nas
+    siglas já postas (`taken`, retângulos). Não cabe: None (vai para fora,
+    com o traço)."""
+    inner = poly.buffer(-2)
+    for size in sizes:
+        w, h = len(text) * size * CAPS + 2, size * 1.1
+        for cx, cy in points:
+            r = box(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)
+            if inner.contains(r) and not any(r.intersects(o) for o in taken):
+                taken.append(r.buffer(3))
+                return cx, cy, size
     return None
 
 
@@ -138,7 +142,7 @@ def list_layout(names):
     """Lista em colunas embaixo do título: a maior letra (até 20) em que tudo
     cabe em no máximo 5 colunas; não cabendo nem na menor, corta os nomes."""
     x, top, bottom = LIST
-    longest = max((len(n) for n in names), default=1)
+    longest = max((len(n) for n in names), default=1) + 4  # + a sigla antes do nome
     for size in (20, 18, 16, 14, 12.5, 11):
         row_h = size * 1.6
         rows = int((bottom - top) // row_h)
@@ -258,11 +262,10 @@ def build(bbox, members, names):
             parts = list(g.geoms) if hasattr(g, "geoms") else [g]
             main = max(parts, key=lambda p: p.area)
             pole = polylabel(main, tolerance=0.5)
-            m = {"id": mid, "name": name, "d": svg_path(g)}
-            fit = fit_text(main, candidates(main, pole), name, taken)
+            m = {"id": mid, "name": name, "abbr": abbr(mid, name), "d": svg_path(g)}
+            fit = fit_text(main, candidates(main, pole), m["abbr"], taken)
             if fit:
-                m["label"] = {"x": round(fit[0], 1), "y": round(fit[1], 1), "size": fit[2], "lines": fit[3],
-                              "rotate": -90 if fit[4] else 0}
+                m["label"] = {"x": round(fit[0], 1), "y": round(fit[1], 1), "size": fit[2]}
             else:
                 co = {"m": m, "tx": round(pole.x, 1), "ty": round(pole.y, 1)}
                 (left if pole.x < ox + mw / 2 else right).append(co)
@@ -302,7 +305,7 @@ def continent(boards_db, geo_db, slug, lang):
             (members if g.intersects(frame) else off).append((cid, names.get(cid, cid), g))
     out = build(spec["bbox"], members, [n for _, n, _ in members + off])
     out.update(kind="continent", id=slug, title=spec[lang if lang == "en" else "pt"], member_kind="country",
-               off=[{"id": i, "name": n} for i, n, _ in off])
+               off=[{"id": i, "name": n, "abbr": abbr(i, n)} for i, n, _ in off])
     return out
 
 
@@ -336,5 +339,5 @@ def country(boards_db, geo_db, cid, lang):
         members = [(cid, title, shape_c)]
     out = build(bbox, members, [n for _, n, _ in members + off])
     out.update(kind="country", id=cid, title=title, member_kind="state" if names else "country",
-               off=[{"id": i, "name": n} for i, n, _ in off])
+               off=[{"id": i, "name": n, "abbr": abbr(i, n)} for i, n, _ in off])
     return out
