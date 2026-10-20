@@ -924,7 +924,7 @@ body.no-intro #setup-map, body.no-intro .setup, body.no-intro .setup-card { tran
 .hint.inherited b { font-weight: 600; letter-spacing: .02em; }
 .list.years .year { font-size: 17px; min-width: 48px; }
 
-/* Quadros de raspar (/quadros, static/boards.js): fundo escuro; o quadro é um
+/* Quadros de raspar (/boards, static/boards.js): fundo escuro; o quadro é um
    SVG 3:2 que escala por inteiro */
 .boards-page { background: #0b0d11; color: #e9dfc4; }
 .boards-page .album-crumbs, .boards-page .album-crumbs a, .boards-page .hint { color: #b9a774; }

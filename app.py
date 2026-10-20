@@ -278,7 +278,7 @@ SETUP_OPEN = ("/setup", "/api/setup", "/static/", "/api/restore", "/api/settings
 
 # Perfis (profiles.py): o do cookie; com um perfil só, ele mesmo. Com vários e
 # nenhum escolhido, a tela de escolha (que usa o primeiro só para idioma e tema).
-PROFILE_FREE = ("/static/", "/perfis") + PWA_PATHS
+PROFILE_FREE = ("/static/", "/profiles") + PWA_PATHS
 
 
 @app.before_request
@@ -289,9 +289,9 @@ def pick_profile():
         if len(every) == 1 or request.path.startswith(PROFILE_FREE):
             p = every[0]
         elif request.path.startswith("/api/"):
-            abort(409, "escolha um perfil em /perfis")
+            abort(409, "escolha um perfil em /profiles")
         else:
-            return redirect("/perfis")
+            return redirect("/profiles")
     g.prof = p
     return None
 
@@ -383,15 +383,9 @@ def board_api(kind, board_id):
     return jsonify({**b, "canvas": boards.CANVAS})
 
 
-@app.get("/raspar")
-def raspar():
-    """Mapa de raspar tradicional (pôster): preview, ainda sem link no menu."""
-    return render_template("raspar.html", geo_v=int(TILES.stat().st_mtime))
-
-
 def settings():
     """Configurações da instância (tabela settings). Ver prefs() e a página
-    /config. Vista inicial do mapa: start_view = country (cidades visitadas em
+    /settings. Vista inicial do mapa: start_view = country (cidades visitadas em
     home_country) | all | last (onde parou, por aparelho) | fixed (start_fixed
     = "lon,lat,zoom"); sem start_view, country se houver home_country, senão all."""
     return {r["key"]: r["value"] for r in db().execute("SELECT key, value FROM settings")}
@@ -568,26 +562,26 @@ def profile_photo():
 
 
 # ------------------------------------------------------------------ perfis
-# Tela "quem está usando?" (/perfis): escolher grava o cookie neste aparelho.
+# Tela "quem está usando?" (/profiles): escolher grava o cookie neste aparelho.
 # Perfil novo passa pelo assistente sem a parte dos dados do mapa.
 def use(resp, p):
     resp.set_cookie(profiles.COOKIE, p.id, max_age=10 * 365 * 86400, samesite="Lax")
     return resp
 
 
-@app.get("/perfis")
+@app.get("/profiles")
 def profiles_page():
     chosen = profiles.get(request.cookies.get(profiles.COOKIE))
-    return render_template("perfis.html", people=[p.info() for p in profiles.list_all()],
+    return render_template("profiles.html", people=[p.info() for p in profiles.list_all()],
                            chosen=chosen and chosen.id, can_add=installed())
 
 
-@app.get("/perfis/<pid>/usar")
+@app.get("/profiles/<pid>/use")
 def use_profile(pid):
     return use(redirect("/"), profiles.get(pid) or abort(404))
 
 
-@app.get("/perfis/<pid>/foto.jpg")
+@app.get("/profiles/<pid>/photo.jpg")
 def profile_photo_of(pid):
     p = profiles.get(pid) or abort(404)
     if not p.photo.exists():
@@ -595,7 +589,7 @@ def profile_photo_of(pid):
     return send_file(p.photo, mimetype="image/jpeg", max_age=30 * 86400)
 
 
-@app.post("/perfis/novo")
+@app.post("/profiles/new")
 def new_profile():
     if not installed():
         abort(409, "instalação em andamento")
@@ -873,18 +867,13 @@ def import_profile():
     return jsonify(ok=True, imported=totals([prof().db]))
 
 
-@app.get("/perfil")
-def perfil():
-    return render_template("perfil.html")
+@app.get("/profile")
+def profile_page():
+    return render_template("profile.html")
 
 
-@app.get("/stats")
-def stats():
-    return redirect("/perfil")  # aba antiga
-
-
-@app.get("/config")
-def config():
+@app.get("/settings")
+def settings_page():
     # países visitados, para o "cidades visitadas em …" da vista inicial
     countries = db().execute(f"""SELECT co.id, co.name FROM ({VISITED_COUNTRIES_SQL}) v
                                  JOIN countries co ON co.id = v.id ORDER BY co.name""").fetchall()
@@ -893,7 +882,7 @@ def config():
     # geodata.json; aí a data é a do desenho do mapa (o geo.db pode ter sido
     # atualizado depois, sem remontar)
     built = installer.manifest().get("built_at") or dt.datetime.fromtimestamp(TILES.stat().st_mtime).isoformat()
-    return render_template("config.html", settings=settings(), countries=countries, geo_v=geo_v,
+    return render_template("settings.html", settings=settings(), countries=countries, geo_v=geo_v,
                            geodata={"mode": installer.mode()} | installer.manifest() | {"built_at": built},
                            version=version.VERSION, released=version.RELEASED)
 
