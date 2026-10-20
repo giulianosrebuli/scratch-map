@@ -6,13 +6,12 @@
    no alto à esquerda, a lista (também raspável) embaixo dele e o mapa à
    direita. Tudo escala junto: nada de zoom mexendo nos nomes. */
 (() => {
-  const { $, esc, api, json, el, t } = window.SM;
+  const { $, esc, api, el, t } = window.SM;
   const root = $('#boards');
   const NS = 'http://www.w3.org/2000/svg';
   const [CW, CH] = [1500, 1000];
   // nos quadros, todo nome em caixa alta (boards.CAPS mede a largura assim)
   const up = (s) => s.toLocaleUpperCase(document.documentElement.lang || 'pt-BR');
-  const reduced = () => window.PREFS?.skip_animations || matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 
   let visited = {};   // kind → Map(id → item de /api/visited)
@@ -113,7 +112,8 @@
     const crumbs = [`<a href="/boards">${t('Quadros')}</a>`];
     if (b.kind === 'country' && b.parent) crumbs.push(`<a href="/boards/continent/${b.parent.id}">${esc(b.parent.title)}</a>`);
     crumbs.push(`<b>${esc(b.title)}</b>`);
-    root.append(el(`<nav class="album-crumbs">${crumbs.join(' › ')}</nav>`));
+    root.append(el(`<div class="board-top"><nav class="album-crumbs">${crumbs.join(' › ')}</nav>
+      <button class="btn secondary small board-export">${t('Exportar imagem')}</button></div>`));
 
     const L = b.list;  // colunas e tamanho da letra: boards.list_layout
     L.cut ??= Infinity;
@@ -159,7 +159,7 @@
         r.setAttribute('fill', on ? 'url(#silver-line)' : 'url(#gold-line)');
       }
       const n = all.filter((m) => isOn(mk, m.id)).length;
-      $('.subtitle', svg).textContent = t('{n} de {total} raspados', { n, total: all.length });
+      $('.subtitle', svg).textContent = t('{n} de {total}', { n, total: all.length });
     };
     paint();
 
@@ -168,77 +168,55 @@
       if (id) actions(all.find((m) => m.id === id));
     });
 
-    // tocou numa porção: raspar / desmarcar / abrir o quadro do país
+    // Só leitura: marcar e desmarcar é no mapa. Tocar numa porção (ou no nome
+    // na lista) leva ao quadro de dentro dela ou ao lugar no mapa.
     function actions(m) {
       $('.board-actions')?.remove();
-      const item = visited[mk]?.get(String(m.id));
       const box = el(`<div class="board-actions glass"><b>${esc(up(m.name))}</b><div class="row"></div></div>`);
       const row = $('.row', box);
-      if (!item) row.append(button(t('Raspar'), 'flag', async () => { await scratch(m); box.remove(); }));
-      else if (item.explicit) row.append(button(t('Desmarcar'), 'secondary', async () => { await unscratch(m, item); box.remove(); }));
-      else row.append(el(`<small>${mk === 'country' ? t('Marcado pelos estados ou cidades.') : t('Marcado pelas cidades.')}</small>`));
       if (mk === 'country' && b.kind === 'continent') row.append(link(t('Abrir quadro'), `/boards/country/${encodeURIComponent(m.id)}`));
       row.append(link(t('Ver no mapa'), `/?open=${mk}:${encodeURIComponent(m.id)}`));
-      row.append(button('×', 'ghost', () => box.remove()));
+      const close = el('<button class="btn ghost">×</button>');
+      close.onclick = () => box.remove();
+      row.append(close);
       document.body.append(box);
     }
-    const button = (label, cls, fn) => { const x = el(`<button class="btn ${cls}">${label}</button>`); x.onclick = fn; return x; };
     const link = (label, href) => el(`<a class="btn secondary" href="${href}">${label}</a>`);
 
-    async function scratch(m) {
-      await api('/api/visits', json('POST', { kind: mk, id: m.id }));
-      await loadVisited();
-      const g = svg.querySelector(`.member[data-id="${CSS.escape(m.id)}"]`);
-      if (g && !reduced()) await scratchAnim(g);
-      paint();
-    }
-    async function unscratch(m, item) {
-      if (item.photos && !confirm(t('Desmarcar também remove {n} foto(s) deste lugar. Continuar?', { n: item.photos }))) return;
-      await api(`/api/visits/${mk}/${encodeURIComponent(m.id)}`, { method: 'DELETE' });
-      await loadVisited();
-      if (isOn(mk, m.id)) toast(t('Ainda marcado pelo que tem dentro.'));
-      paint();
-    }
-
-    // raspagem: riscos em zigue-zague apagam a película (máscara) e revelam a cor
-    function scratchAnim(g) {
-      return new Promise((done) => {
-        const foil = $('.foil', g);
-        const bb = foil.getBBox();
-        const w = Math.max(6, Math.min(bb.width, bb.height) / 4);
-        let d = '';
-        const rows = Math.ceil(bb.height / (w * 0.7)) + 1;
-        for (let i = 0; i < rows; i++) {
-          const y = bb.y + i * w * 0.7;
-          const [a, z] = i % 2 ? [bb.x + bb.width + w, bb.x - w] : [bb.x - w, bb.x + bb.width + w];
-          d += `${i ? 'L' : 'M'}${a},${y + (Math.random() - 0.5) * w * 0.4}L${z},${y + w * 0.35}`;
-        }
-        const id = `scr-${Math.random().toString(36).slice(2)}`;
-        const mask = document.createElementNS(NS, 'mask');
-        mask.id = id;
-        mask.setAttribute('maskUnits', 'userSpaceOnUse');
-        mask.innerHTML = `<rect x="${bb.x - w}" y="${bb.y - w}" width="${bb.width + 2 * w}" height="${bb.height + 2 * w}" fill="#fff"/>
-          <path d="${d}" fill="none" stroke="#000" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`;
-        svg.querySelector('defs').append(mask);
-        const stroke = mask.querySelector('path');
-        const len = stroke.getTotalLength();
-        stroke.style.strokeDasharray = len;
-        stroke.style.strokeDashoffset = len;
-        foil.setAttribute('mask', `url(#${id})`);
-        g.classList.add('on');  // a cor já está embaixo; a película some aos riscos
-        foil.style.display = 'inline';
-        requestAnimationFrame(() => {
-          stroke.style.transition = `stroke-dashoffset ${Math.min(1800, 500 + len / 3)}ms linear`;
-          stroke.style.strokeDashoffset = 0;
-        });
-        stroke.addEventListener('transitionend', () => {
-          foil.style.display = '';
-          foil.removeAttribute('mask');
-          mask.remove();
-          done();
-        }, { once: true });
-      });
-    }
+    // Exportar: o SVG vira PNG (3000 × 2000) num canvas. A textura vai
+    // embutida (data: URL), porque o SVG desenhado como imagem não busca
+    // arquivos de fora.
+    $('.board-export', root).addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      btn.disabled = true;
+      try {
+        const clone = svg.cloneNode(true);
+        clone.setAttribute('width', CW);
+        clone.setAttribute('height', CH);
+        const tex = await fetch('/static/textures/foil.png').then((r) => r.blob());
+        const dataURL = await new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(tex); });
+        clone.querySelectorAll('image').forEach((im) => im.setAttribute('href', dataURL));
+        const style = document.createElementNS(NS, 'style');
+        style.textContent = [...document.styleSheets].flatMap((sh) => { try { return [...sh.cssRules]; } catch { return []; } })
+          .map((r) => r.cssText).filter((c) => c.includes('.board-svg')).join('\n');
+        clone.prepend(style);
+        const blob = new Blob([new XMLSerializer().serializeToString(clone)], { type: 'image/svg+xml' });
+        const img = new Image();
+        img.src = URL.createObjectURL(blob);
+        await img.decode();
+        const canvas = Object.assign(document.createElement('canvas'), { width: CW * 2, height: CH * 2 });
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(img.src);
+        const png = await new Promise((res) => canvas.toBlob(res, 'image/png'));
+        const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(png), download: `scratch-map-${b.id}.png` });
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      } catch (err) {
+        toast(t('Não deu para exportar: {erro}', { erro: err.message }));
+      } finally {
+        btn.disabled = false;
+      }
+    });
   }
 
   // ------------------------------------------------------------------ rotas

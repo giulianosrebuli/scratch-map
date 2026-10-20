@@ -935,6 +935,8 @@ body.no-intro #setup-map, body.no-intro .setup, body.no-intro .setup-card { tran
 .board-card { display: flex; flex-direction: column; gap: 4px; text-decoration: none; color: #b9a774; font-size: 13px; }
 .board-card svg { width: 100%; height: auto; border-radius: 3px; box-shadow: 0 6px 18px rgba(0, 0, 0, .5); }
 .board-wrap { width: 100%; }
+.board-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.board-top .board-export { align-self: auto; }
 .board-svg { display: block; width: 100%; height: auto; border-radius: 3px; box-shadow: 0 14px 40px rgba(0, 0, 0, .6); }
 .board-svg .title, .board-card .title {
   font-family: Georgia, "Times New Roman", serif; font-weight: 600; font-size: 76px; letter-spacing: .14em; text-transform: uppercase; fill: url(#gold-line);
