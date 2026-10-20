@@ -182,28 +182,33 @@ systemd de usuário. Acesso pela rede de casa ou por VPN (ex.: Tailscale).
     monumento (as fotos vão para o trash). Rascunho abandonado (fechou a página
     no meio do formulário) é apagado no próximo início do serviço, depois de
     um dia.
-- **Configurações** (`/settings`, engrenagem no cabeçalho do Perfil):
-  - **Aparência**: idioma; tema claro, escuro ou automático (segue o sistema;
-    no escuro, as fotos impressas continuam papel branco); cores do mapa
-    (água, terra, país, estado, cidade, aeroporto, monumento), com prévia ao
-    vivo e "Restaurar cores padrão";
-  - **Mapa**: formato (plano ou globo); bordas; vista inicial (cidades
+- **Configurações** (`/settings`, engrenagem no cabeçalho do Perfil): em
+  abas, como as do Ubuntu, com uma barra lateral à esquerda; no celular, a
+  barra é uma lista e a aba abre por cima, com voltar. Cada aba tem endereço
+  (`/settings#backup`).
+  - **Geral**: idioma e, embaixo, sobre o app: versão e data de publicação
+    (`version.py`), link do código e, em "Dados do mapa", o modo
+    (Leve/Completo), a versão do Overture, a data da montagem e as fontes com
+    as licenças;
+  - **Aparência**: tema claro, escuro ou automático (segue o sistema; no
+    escuro, as fotos impressas continuam papel branco); cores do mapa (água,
+    terra, país, estado, cidade, aeroporto, monumento), com prévia ao vivo e
+    "Restaurar cores padrão"; e o mapa: formato (plano ou globo); bordas;
+    **pular animações** (por perfil: tira a descida ao abrir e a raspagem ao
+    marcar; "reduzir movimento" no sistema também); vista inicial (cidades
     visitadas num país, todas as visitadas, onde parou, por aparelho, ou uma
-    posição fixa, escolhida arrastando um mapa pequeno ali mesmo). Ao abrir
-    o app (uma vez por sessão), o mapa começa de longe e desce até a vista
-    inicial em ~2,4 s; voltando de outra tela vai direto. **Pular animações**
-    (por perfil) tira essa descida e a raspagem ao marcar; "reduzir
-    movimento" no sistema também;
-  - **Dados e privacidade**: um
-    liga/desliga para cada pedido que sai da máquina (sugestão de nome do
-    monumento e contorno de cidade, no Nominatim; bandeiras de estado, no
-    Wikidata/Commons), dizendo o que sai e para quem. Desligado, o pedido não
-    acontece;
-  - **Perfil**: exportar este perfil; apagar;
-  - **Backup do servidor**: baixar um .zip com todos os perfis; restaurar.
-  - **Sobre**, no fim: versão e data de publicação (`version.py`), link do
-    código e, em "Dados do mapa", o modo (Leve/Completo), a versão do
-    Overture, a data da montagem e as fontes com as licenças.
+    posição fixa, escolhida arrastando um mapa pequeno ali mesmo). Ao abrir o
+    app (uma vez por sessão), o mapa começa de longe e desce até a vista
+    inicial em ~2,4 s; voltando de outra tela vai direto;
+  - **Dados e privacidade**: um liga/desliga para cada pedido que sai da
+    máquina (sugestão de nome do monumento e contorno de cidade, no
+    Nominatim; bandeiras de estado, no Wikidata/Commons), dizendo o que sai e
+    para quem. Desligado, o pedido não acontece;
+  - **Chaves de API**: os tokens de integração deste perfil (criar, revogar);
+  - **Backup**: baixar um .zip com todos os perfis do servidor; restaurar;
+  - **Atualização**: a versão instalada e, por enquanto, o caminho manual
+    (abaixo, em "Operação"); atualizar pelo app ainda não existe.
+  Exportar e apagar o perfil ficam no fim da página do Perfil ("Este perfil").
   Fica tudo na tabela `settings` (vale em todos os aparelhos) e entra no
   `<head>` de cada página (`templates/_head.html`).
 - **Globo/plano**: escolhido na configuração (Mapa → Formato). No globo o
@@ -582,8 +587,8 @@ journalctl --user -u scratch-map -f
 systemctl --user restart scratch-map    # depois de mudar código
 ```
 
-**Backup**: é do servidor inteiro. Pela tela (Configurações → Backup do
-servidor → "Baixar backup"): um `.zip` com **todos os perfis**, cada um em
+**Backup**: é do servidor inteiro. Pela tela (Configurações → Backup →
+"Baixar backup"): um `.zip` com **todos os perfis**, cada um em
 `profiles/<id>/` com o banco (visitas, monumentos, configurações, contornos),
 as fotos (original, exibição e miniatura), as bandeiras baixadas e a foto de
 perfil, mais um `manifest.json` com a lista dos perfis. Ficam de fora os

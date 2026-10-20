@@ -15,6 +15,25 @@
     toastTimer = setTimeout(() => { box.hidden = true; }, 3500);
   }
 
+  // ------------------------------------------------------------------ abas
+  // A aba vem do endereço (#backup). Tela larga: barra sempre à vista e, sem
+  // aba no endereço, a primeira. Estreita: sem aba, só a lista; com aba, só ela.
+  const tabs = [...document.querySelectorAll('.settings-nav [data-tab]')];
+  const panes = [...document.querySelectorAll('.settings-pane')];
+  const narrow = matchMedia('(max-width: 760px)');
+  function showTab() {
+    let id = location.hash.slice(1);
+    if (!panes.some((p) => p.dataset.tab === id)) id = narrow.matches ? '' : panes[0].dataset.tab;
+    panes.forEach((p) => { p.hidden = p.dataset.tab !== id; });
+    tabs.forEach((a) => (a.dataset.tab === id ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')));
+    document.body.classList.toggle('pane-open', !!id);
+    window.dispatchEvent(new Event('resize'));  // o mapa da vista inicial, se acabou de aparecer
+    if (narrow.matches) window.scrollTo(0, 0);
+  }
+  window.addEventListener('hashchange', showTab);
+  narrow.addEventListener('change', showTab);
+  showTab();
+
   // ------------------------------------------------------------------ idioma
   // os textos vêm do servidor já traduzidos: grava e recarrega
   $('#language').addEventListener('change', async (e) => {
@@ -182,17 +201,6 @@
       toast(t('Copiado'));
     } catch {  // sem HTTPS o navegador não deixa: seleciona para copiar à mão
       getSelection().selectAllChildren($('#token-value'));
-    }
-  });
-
-  // ------------------------------------------------------------------ perfil
-  $('#delete-profile')?.addEventListener('click', async () => {
-    if (!confirm(t('Apagar este perfil? As visitas, os monumentos, as fotos e as configurações dele saem do app.'))) return;
-    try {
-      await api('/api/profile', { method: 'DELETE' });
-      location.href = '/profiles';
-    } catch (e) {
-      alert(t('Não deu para apagar: {erro}', { erro: e.message }));
     }
   });
 

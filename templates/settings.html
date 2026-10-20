@@ -5,22 +5,92 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/maplibre-gl.css') }}">
 {% include '_head.html' %}
 </head>
-<body class="stats-page" data-projection="{{ prefs.projection }}">
-  <header class="topbar">
-    <a class="ghost" href="/profile" title="{{ _('Voltar ao perfil') }}">‹ {{ _('Perfil') }}</a>
-  </header>
-
-  <main class="stats-main">
-    <div class="stats-col config">
-      <h2 class="config-title">{{ _('Aparência') }}</h2>
-
-      <section class="config-card">
+{# Configurações em abas, como as do Ubuntu: barra lateral à esquerda e a aba
+   à direita; no celular, a barra é a tela inicial e a aba abre por cima, com
+   voltar. A aba vem do endereço (/settings#backup). Exportar e apagar o
+   perfil ficam na página do Perfil. #}
+<body class="stats-page settings-page" data-projection="{{ prefs.projection }}">
+  <main class="settings">
+    <nav class="settings-nav" aria-label="{{ _('Configurações') }}">
+      <a class="nav-back" href="/profile">‹ {{ _('Perfil') }}</a>
+      <h1>{{ _('Configurações') }}</h1>
+        <a href="#general" data-tab="general"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg><span>{{ _('Geral') }}</span></a>
+        <a href="#appearance" data-tab="appearance"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.6-.9 1.2-1.9-.5-1.1.3-2.1 1.4-2.1H17a4 4 0 0 0 4-4c0-5.5-4-10-9-10z"/><circle cx="7.5" cy="11" r="1.2"/><circle cx="10.5" cy="7.2" r="1.2"/><circle cx="15" cy="7.5" r="1.2"/></svg><span>{{ _('Aparência') }}</span></a>
+        <a href="#privacy" data-tab="privacy"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6z"/><path d="m9 12 2 2 4-4"/></svg><span>{{ _('Dados e privacidade') }}</span></a>
+        <a href="#api" data-tab="api"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 8.7-8.7M16.5 6.5l2.5 2.5M14 9l2 2"/></svg><span>{{ _('Chaves de API') }}</span></a>
+        <a href="#backup" data-tab="backup"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/><path d="M3 4h18v3H3zM10 11h4"/></svg><span>{{ _('Backup') }}</span></a>
+        <a href="#update" data-tab="update"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 0 1-14.3 4.9M4 12a8 8 0 0 1 14.3-4.9"/><path d="M18.5 3.5v3.8h-3.8M5.5 20.5v-3.8h3.8"/></svg><span>{{ _('Atualização') }}</span></a>
+    </nav>
+    <div class="settings-panes config">
+      {# Geral: idioma e, embaixo, sobre o app (versão, dados do mapa, fontes) #}
+      <section class="settings-pane" id="pane-general" data-tab="general" hidden>
+        <header class="pane-head"><a class="pane-back" href="#">‹ {{ _('Configurações') }}</a><h2>{{ _('Geral') }}</h2></header>
+        <div class="config-card">
         <div class="config-row">
           <span>{{ _('Idioma') }}</span>
           <label class="lang-select">
             <select id="language" aria-label="{{ _('Idioma') }}">{% for code, name in languages.items() %}<option value="{{ code }}" {{ 'selected' if code == lang }}>{{ name }}</option>{% endfor %}</select>
           </label>
         </div>
+        </div>
+        <p class="group-title pane-sub">{{ _('Sobre o app') }}</p>
+      <div class="config-card about">
+        <div class="about-app">
+          <img src="/static/icons/icon-192.png" alt="" width="56" height="56">
+          <div>
+            <b>Scratch Map</b>
+            <small><a href="https://github.com/giulianosrebuli/scratch-map" target="_blank" rel="noopener">{{ _('Código-fonte') }}</a> · {{ _('licença MIT') }}</small>
+          </div>
+        </div>
+        <div class="config-row">
+          <span>{{ _('Versão') }}</span>
+          <span class="hint">{{ version or _('em desenvolvimento') }}</span>
+        </div>
+        <div class="config-row">
+          <span>{{ _('Publicada em') }}</span>
+          <span class="hint">{{ released | day if released else '—' }}</span>
+        </div>
+      </div>
+
+      <div class="config-card">
+        <p class="group-title">{{ _('Dados do mapa') }}</p>
+        <div class="config-row">
+          <span>{{ _('Modo') }}</span>
+          <span class="hint">{{ _('Leve') if geodata.mode == 'leve' else _('Completo') }}</span>
+        </div>
+        {% if geodata.release %}
+        <div class="config-row">
+          <span>{{ _('Versão do Overture') }}</span>
+          <span class="hint">{{ geodata.release }}</span>
+        </div>
+        {% endif %}
+        <div class="config-row">
+          <span>{{ _('Montado em') }}</span>
+          <span class="hint">{{ geodata.built_at | day }}</span>
+        </div>
+        <p class="hint">{{ _('O mapa é montado nesta máquina a partir de dados abertos:') }}</p>
+        <ul class="sources">
+          <li><a href="https://overturemaps.org/" target="_blank" rel="noopener">Overture Maps</a>
+            <span>{{ _('países, estados e áreas de cidade') }} · ODbL</span></li>
+          <li><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© {{ _('colaboradores do OpenStreetMap') }}</a>
+            <span>{{ _('litoral e, por dentro do Overture, as divisas') }} · ODbL</span></li>
+          <li><a href="https://www.geonames.org/" target="_blank" rel="noopener">GeoNames</a>
+            <span>{{ _('cidades (busca e ponto)') }} · CC BY 4.0</span></li>
+          <li><a href="https://ourairports.com/" target="_blank" rel="noopener">OurAirports</a>
+            <span>{{ _('aeroportos') }} · {{ _('domínio público') }}</span></li>
+          <li><a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a>
+            <span>{{ _('o mundo do fundo do assistente') }} · {{ _('domínio público') }}</span></li>
+          <li><a href="https://github.com/lipis/flag-icons" target="_blank" rel="noopener">flag-icons</a> · <a href="https://www.wikidata.org/" target="_blank" rel="noopener">Wikidata</a>
+            <span>{{ _('bandeiras de países (MIT) e de estados (Wikimedia Commons)') }}</span></li>
+          <li><a href="https://maplibre.org/" target="_blank" rel="noopener">MapLibre</a>
+            <span>{{ _('desenho do mapa') }} · BSD</span></li>
+        </ul>
+      </div>
+      </section>
+
+      <section class="settings-pane" id="pane-appearance" data-tab="appearance" hidden>
+        <header class="pane-head"><a class="pane-back" href="#">‹ {{ _('Configurações') }}</a><h2>{{ _('Aparência') }}</h2></header>
+        <div class="config-card">
         <div class="config-row">
           <span>{{ _('Tema') }}</span>
           <nav class="seg" id="theme" aria-label="{{ _('Tema') }}">
@@ -29,9 +99,8 @@
             <button data-theme="auto">{{ _('Automático') }}</button>
           </nav>
         </div>
-      </section>
-
-      <section class="config-card">
+        </div>
+      <div class="config-card">
         <p class="group-title">{{ _('Cores do mapa') }}</p>
         {# prévia: um pedaço de mapa desenhado com as mesmas variáveis de cor #}
         <svg class="map-preview" viewBox="0 0 320 120" aria-hidden="true">
@@ -56,11 +125,9 @@
           {% endfor %}
         </ul>
         <button class="btn secondary" id="reset-colors">{{ _('Restaurar cores padrão') }}</button>
-      </section>
-
-      <h2 class="config-title">{{ _('Mapa') }}</h2>
-
-      <section class="config-card">
+      </div>
+        <p class="group-title pane-sub">{{ _('Mapa') }}</p>
+      <div class="config-card">
         <div class="config-row">
           <span>{{ _('Formato') }}</span>
           <nav class="seg" id="projection" aria-label="{{ _('Formato do mapa') }}">
@@ -68,9 +135,8 @@
             <button data-projection="globe">{{ _('Globo') }}</button>
           </nav>
         </div>
-      </section>
-
-      <section class="config-card">
+      </div>
+      <div class="config-card">
         <p class="group-title">{{ _('Bordas') }}</p>
         <ul class="switches" id="borders">
           {% set labels = {'borders_country': (_('Países'), _('A linha entre os países.')),
@@ -85,9 +151,8 @@
           </li>
           {% endfor %}
         </ul>
-      </section>
-
-      <section class="config-card">
+      </div>
+      <div class="config-card">
         <ul class="switches">
           <li>
             <label class="switch-row">
@@ -96,9 +161,8 @@
             </label>
           </li>
         </ul>
-      </section>
-
-      <section class="config-card">
+      </div>
+      <div class="config-card">
         <p class="group-title">{{ _('Vista inicial') }}</p>
         {# sem start_view: o comportamento antigo (país "de casa" se houver, senão todas) #}
         {% set mode = settings.start_view or ('country' if settings.home_country else 'all') %}
@@ -128,11 +192,12 @@
           </label>
         </div>
         <div id="fixed-map" class="mini-map" hidden data-view="{{ settings.start_fixed or '' }}"></div>
+      </div>
       </section>
 
-      <h2 class="config-title">{{ _('Dados e privacidade') }}</h2>
-
-      <section class="config-card">
+      <section class="settings-pane" id="pane-privacy" data-tab="privacy" hidden>
+        <header class="pane-head"><a class="pane-back" href="#">‹ {{ _('Configurações') }}</a><h2>{{ _('Dados e privacidade') }}</h2></header>
+        <div class="config-card">
         <p class="hint">{{ _('Mapa, visitas e fotos ficam só nesta máquina. As exceções são estes pedidos a serviços abertos, cada um com o mínimo necessário. Desligado, o pedido não acontece.') }}</p>
         {% set ext = prefs.external %}
         <ul class="switches" id="external">
@@ -170,26 +235,13 @@
             <button class="btn secondary small" id="refetch-flags" {{ 'disabled' if not ext.ext_state_flags }}>{{ _('Buscar bandeiras de novo') }}</button>
           </li>
         </ul>
-      </section>
-
-      <h2 class="config-title">{{ _('Perfil') }}</h2>
-
-      <section class="config-card">
-        <p class="hint">{{ _('Um .zip só com as visitas, os monumentos, as fotos e as configurações deste perfil, para levar a outra instalação (lá: Adicionar perfil → Importar um perfil).') }}</p>
-        <a class="btn secondary" id="profile-export" href="/api/profile/export" download>{{ _('Exportar este perfil') }}</a>
-        {% if profile_count > 1 %}
-        <div class="backup-restore">
-          <b>{{ _('Apagar') }}</b>
-          <small>{{ _('Apaga as visitas, os monumentos, as fotos e as configurações deste perfil. Os outros perfis não mudam. A pasta dele fica guardada no servidor, em data/profiles-removed/.') }}</small>
-          <button class="btn danger" id="delete-profile">{{ _('Apagar este perfil') }}</button>
         </div>
-        {% endif %}
       </section>
 
-      <h2 class="config-title">{{ _('API para integrações') }}</h2>
-
+      <section class="settings-pane" id="pane-api" data-tab="api" hidden>
+        <header class="pane-head"><a class="pane-back" href="#">‹ {{ _('Configurações') }}</a><h2>{{ _('Chaves de API') }}</h2></header>
       {# tokens deste perfil (tokens.py): quem tem um age como este perfil em /api/v1 #}
-      <section class="config-card" id="api-tokens">
+      <div class="config-card" id="api-tokens">
         <p class="hint">{{ _('Para o Home Assistant, scripts e outros apps usarem este perfil pela API (/api/v1). Cada token age como este perfil: pode marcar, desmarcar e enviar fotos. Crie um por integração, para poder revogar só aquele.') }}
           <a href="/api/docs" target="_blank">{{ _('Documentação da API') }}</a></p>
         <ul class="token-list" id="token-list"></ul>
@@ -202,11 +254,12 @@
           <code id="token-value"></code>
           <button class="btn small" id="token-copy" type="button">{{ _('Copiar') }}</button>
         </div>
+      </div>
       </section>
 
-      <h2 class="config-title">{{ _('Backup do servidor') }}</h2>
-
-      <section class="config-card" id="backup">
+      <section class="settings-pane" id="pane-backup" data-tab="backup" hidden>
+        <header class="pane-head"><a class="pane-back" href="#">‹ {{ _('Configurações') }}</a><h2>{{ _('Backup') }}</h2></header>
+      <div class="config-card" id="backup">
         <p class="hint">{{ _('Um .zip com todos os perfis deste servidor: visitas, monumentos, configurações e fotos (as originais). Os dados do mapa ficam de fora: numa instalação nova, o assistente monta de novo. Guarde fora desta máquina.') }}</p>
         <p class="backup-info" id="backup-info">…</p>
         <a class="btn" id="backup-download" href="/api/backup" download>{{ _('Baixar backup') }}</a>
@@ -216,61 +269,26 @@
           <button class="btn secondary small" id="restore-btn">{{ _('Escolher arquivo…') }}</button>
           <input type="file" id="restore-file" accept=".zip,application/zip" hidden>
         </div>
+      </div>
       </section>
 
-      <h2 class="config-title">{{ _('Sobre') }}</h2>
-
-      <section class="config-card about">
-        <div class="about-app">
-          <img src="/static/icons/icon-192.png" alt="" width="56" height="56">
-          <div>
-            <b>Scratch Map</b>
-            <small><a href="https://github.com/giulianosrebuli/scratch-map" target="_blank" rel="noopener">{{ _('Código-fonte') }}</a> · {{ _('licença MIT') }}</small>
+      {# Atualização: ainda sem mecanismo no app (melhorias.md); por enquanto, o caminho manual #}
+      <section class="settings-pane" id="pane-update" data-tab="update" hidden>
+        <header class="pane-head"><a class="pane-back" href="#">‹ {{ _('Configurações') }}</a><h2>{{ _('Atualização') }}</h2></header>
+        <div class="config-card">
+          <div class="config-row">
+            <span>{{ _('Versão instalada') }}</span>
+            <span class="hint">{{ version or _('em desenvolvimento') }}</span>
           </div>
+          <p class="hint">{{ _('Ainda não dá para atualizar por aqui. Por enquanto, a atualização é feita na máquina do servidor, com o código novo do GitHub:') }}</p>
+          <div class="update-howto">
+            <b>{{ _('Com Docker') }}</b>
+            <code>git pull && docker compose up -d --build</code>
+            <b>{{ _('Sem Docker') }}</b>
+            <code>git pull && systemctl --user restart scratch-map</code>
+          </div>
+          <p class="hint">{{ _('Antes, baixe um backup') }} (<a href="#backup">{{ _('Backup') }}</a>). <a href="https://github.com/giulianosrebuli/scratch-map/commits/main" target="_blank" rel="noopener">{{ _('O que mudou') }}</a></p>
         </div>
-        <div class="config-row">
-          <span>{{ _('Versão') }}</span>
-          <span class="hint">{{ version or _('em desenvolvimento') }}</span>
-        </div>
-        <div class="config-row">
-          <span>{{ _('Publicada em') }}</span>
-          <span class="hint">{{ released | day if released else '—' }}</span>
-        </div>
-      </section>
-
-      <section class="config-card">
-        <p class="group-title">{{ _('Dados do mapa') }}</p>
-        <div class="config-row">
-          <span>{{ _('Modo') }}</span>
-          <span class="hint">{{ _('Leve') if geodata.mode == 'leve' else _('Completo') }}</span>
-        </div>
-        {% if geodata.release %}
-        <div class="config-row">
-          <span>{{ _('Versão do Overture') }}</span>
-          <span class="hint">{{ geodata.release }}</span>
-        </div>
-        {% endif %}
-        <div class="config-row">
-          <span>{{ _('Montado em') }}</span>
-          <span class="hint">{{ geodata.built_at | day }}</span>
-        </div>
-        <p class="hint">{{ _('O mapa é montado nesta máquina a partir de dados abertos:') }}</p>
-        <ul class="sources">
-          <li><a href="https://overturemaps.org/" target="_blank" rel="noopener">Overture Maps</a>
-            <span>{{ _('países, estados e áreas de cidade') }} · ODbL</span></li>
-          <li><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© {{ _('colaboradores do OpenStreetMap') }}</a>
-            <span>{{ _('litoral e, por dentro do Overture, as divisas') }} · ODbL</span></li>
-          <li><a href="https://www.geonames.org/" target="_blank" rel="noopener">GeoNames</a>
-            <span>{{ _('cidades (busca e ponto)') }} · CC BY 4.0</span></li>
-          <li><a href="https://ourairports.com/" target="_blank" rel="noopener">OurAirports</a>
-            <span>{{ _('aeroportos') }} · {{ _('domínio público') }}</span></li>
-          <li><a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a>
-            <span>{{ _('o mundo do fundo do assistente') }} · {{ _('domínio público') }}</span></li>
-          <li><a href="https://github.com/lipis/flag-icons" target="_blank" rel="noopener">flag-icons</a> · <a href="https://www.wikidata.org/" target="_blank" rel="noopener">Wikidata</a>
-            <span>{{ _('bandeiras de países (MIT) e de estados (Wikimedia Commons)') }}</span></li>
-          <li><a href="https://maplibre.org/" target="_blank" rel="noopener">MapLibre</a>
-            <span>{{ _('desenho do mapa') }} · BSD</span></li>
-        </ul>
       </section>
     </div>
   </main>

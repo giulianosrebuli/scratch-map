@@ -28,6 +28,17 @@
   });
   name.addEventListener('keydown', (e) => { if (e.key === 'Enter') name.blur(); });
 
+  // exportar é um link; apagar pede confirmação (só aparece com mais de um perfil)
+  $('#delete-profile')?.addEventListener('click', async () => {
+    if (!confirm(t('Apagar este perfil? As visitas, os monumentos, as fotos e as configurações dele saem do app.'))) return;
+    try {
+      await api('/api/profile', { method: 'DELETE' });
+      location.href = '/profiles';
+    } catch (e) {
+      alert(t('Não deu para apagar: {erro}', { erro: e.message }));
+    }
+  });
+
   avatar.addEventListener('click', () => file.click());
   file.addEventListener('change', async () => {
     if (!file.files.length) return;
