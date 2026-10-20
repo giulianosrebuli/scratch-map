@@ -26,6 +26,7 @@ from PIL import Image, ImageOps
 from pillow_heif import register_heif_opener
 from shapely.geometry import Point, shape
 
+import boards
 import boundaries
 import i18n
 import installer
@@ -40,6 +41,7 @@ DATA = Path(os.environ.get("SCRATCH_DATA", ROOT / "data"))
 GEODATA = Path(os.environ.get("SCRATCH_GEODATA", ROOT / "geodata"))
 GEO_DB = GEODATA / "geo.db"
 TILES = GEODATA / "world.pmtiles"
+BOARDS_DB = GEODATA / "boards.db"   # quadros de raspar (scripts/build_boards.py)
 KINDS = ("country", "state", "city", "airport")   # o que pode ser marcado (visits)
 PHOTO_KINDS = KINDS + ("landmark",)                # o que pode ter foto
 DISPLAY_PX = 2000  # lado maior da versão exibida
@@ -338,6 +340,47 @@ def index():
     # versão dos tiles = mtime; muda quando o build_geodata roda e fura o cache do navegador
     geo_v = int(TILES.stat().st_mtime)
     return render_template("index.html", geo_v=geo_v, settings=settings())
+
+
+@app.get("/quadros")
+@app.get("/quadros/<kind>/<board_id>")
+def quadros(kind=None, board_id=None):
+    """Quadros de raspar (boards.py): escolher o quadro e o quadro em si."""
+    return render_template("quadros.html", ready=BOARDS_DB.exists())
+
+
+def board(kind, board_id):
+    lg = "pt" if lang() == "pt-BR" else "en"
+    if kind == "continente" and board_id in boards.CONTINENTS:
+        return boards.continent(str(BOARDS_DB), str(GEO_DB), board_id, lg)
+    if kind == "pais":
+        b = boards.country(str(BOARDS_DB), str(GEO_DB), board_id, lg)
+        slug = boards.continent_of(str(BOARDS_DB), board_id)
+        return b and {**b, "parent": slug and {"id": slug, "title": boards.CONTINENTS[slug][lg]}}
+    return None
+
+
+@app.get("/api/boards")
+def boards_index():
+    """Os quadros de continente, com quantos países de cada um."""
+    if not BOARDS_DB.exists():
+        abort(404)
+    out = []
+    for slug in boards.CONTINENTS:
+        b = board("continente", slug)
+        out.append({"id": slug, "title": b["title"], "members": [m["id"] for m in b["members"]] + [o["id"] for o in b["off"]],
+                    "x": b["x"], "width": b["width"], "height": b["height"], "d": [m["d"] for m in b["members"]]})
+    return jsonify(out)
+
+
+@app.get("/api/boards/<kind>/<board_id>")
+def board_api(kind, board_id):
+    if not BOARDS_DB.exists():
+        abort(404)
+    b = board(kind, board_id)
+    if b is None:
+        abort(404)
+    return jsonify(b)
 
 
 @app.get("/raspar")

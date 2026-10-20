@@ -923,3 +923,47 @@ body.no-intro #setup-map, body.no-intro .setup, body.no-intro .setup-card { tran
 .date-form .btn.small { align-self: auto; }
 .hint.inherited b { font-weight: 600; letter-spacing: .02em; }
 .list.years .year { font-size: 17px; min-width: 48px; }
+
+/* Quadros de raspar (/quadros, static/boards.js) */
+.boards-page { background: var(--bg); }
+.boards-main { width: 100%; max-width: 1180px; box-sizing: border-box; margin: 0 auto; padding: 18px 16px 120px; display: flex; flex-direction: column; gap: 12px; }
+.boards-title { margin: 0; font: 600 26px/1.1 Georgia, "Times New Roman", serif; letter-spacing: .08em; text-transform: uppercase; }
+.board-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.board-card {
+  display: flex; flex-direction: column; gap: 2px; padding: 10px 10px 12px; border-radius: 6px; text-decoration: none; color: var(--ink);
+  background: #f4ecd8; border: 6px solid #2b2620; box-shadow: 0 2px 10px rgba(0, 0, 0, .18);
+}
+.board-card svg { width: 100%; height: 150px; }
+.board-card b { font: 600 15px Georgia, serif; letter-spacing: .06em; text-transform: uppercase; color: #2b2620; }
+.board-card small { color: #7d6f55; }
+.board-frame { background: #2b2620; padding: 14px; border-radius: 4px; box-shadow: 0 8px 30px rgba(0, 0, 0, .3), inset 0 0 0 2px #4a4136; }
+.board-mat { background: #f4ecd8; padding: 18px 16px 20px; display: flex; flex-direction: column; align-items: center; gap: 4px; box-shadow: inset 0 0 0 1px #d8c9a6; }
+.board-name { margin: 0; font: 600 clamp(20px, 4vw, 34px)/1.1 Georgia, "Times New Roman", serif; letter-spacing: .16em; text-transform: uppercase; color: #2b2620; text-align: center; }
+.board-sub { margin: 0 0 6px; color: #7d6f55; font-size: 13.5px; letter-spacing: .05em; }
+.board-svg { width: 100%; height: auto; }
+.board-svg .ctx path { fill: #e6dcc4; stroke: #d2c4a3; stroke-width: .6; }
+.board-svg .member path { stroke: #6b5212; stroke-width: .6; cursor: pointer; }
+.board-svg .member .foil { fill: url(#gold); filter: url(#grain); }
+.board-svg .member.on .foil { display: none; }
+.board-svg .member.on .paint { stroke: rgba(255, 255, 255, .8); }
+.board-svg text { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-weight: 600; fill: #3d2e10; cursor: pointer;
+  paint-order: stroke; stroke: rgba(255, 244, 210, .55); stroke-width: 2px; stroke-linejoin: round; }
+.board-svg .label.on { fill: #fff; stroke: rgba(0, 0, 0, .35); }
+.board-svg .callout line { stroke: #6b5212; stroke-width: .7; }
+.board-svg .callout circle { fill: #6b5212; }
+.board-svg .callout text { stroke: none; fill: #4a3a18; font-weight: 500; }
+.board-svg .callout.on text { fill: #2b2620; font-weight: 700; }
+.board-list { list-style: none; margin: 10px 0 0; padding: 0; width: 100%; columns: 4 170px; column-gap: 14px; }
+.board-list li { break-inside: avoid; }
+.scratch-chip { display: flex; align-items: center; gap: 7px; width: 100%; padding: 4px 2px; border: none; background: none; color: #3d2e10; font-size: 13.5px; text-align: left; cursor: pointer; }
+.scratch-chip i { flex: none; width: 22px; height: 12px; border-radius: 2px; background: linear-gradient(135deg, #9c7a24, #f6e27a 45%, #b8922e 70%, #e2c063); }
+.scratch-chip.on span { font-weight: 700; }
+.scratch-chip small { color: #8a7b5c; font-size: 11.5px; }
+.board-actions {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(96px + env(safe-area-inset-bottom)); z-index: 30;
+  display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: 16px; min-width: min(92vw, 300px); max-width: 92vw;
+  background: var(--card); color: var(--ink); box-shadow: 0 6px 24px rgba(0, 0, 0, .25);
+}
+.board-actions .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.board-actions .btn { text-decoration: none; }
+.board-actions .btn.ghost { background: none; border: none; font-size: 20px; color: var(--muted); margin-left: auto; padding: 4px 8px; }
