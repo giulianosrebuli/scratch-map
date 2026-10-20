@@ -50,6 +50,8 @@ systemd de usuário. Acesso pela rede de casa ou por VPN (ex.: Tailscale).
   - **Lista de cidades**: várias de uma vez. País → estado (opcional) →
     cidades das maiores para as menores, com filtro por nome; tocar escolhe.
     Marcadas, uma cena só raspa tudo junto; os contornos chegam aos poucos;
+  - **Aeroporto**: busca pelo nome, pela cidade ou pelo código IATA (GRU) e
+    a mesma bandeira (aeroporto não marca a cidade nem o país);
   - **Monumento**: a partir de foto (veja "Monumentos");
   - **Foto**: busca qualquer lugar (país, estado, cidade, aeroporto ou
     monumento); tocar nele abre a escolha dos arquivos e, depois do envio, o

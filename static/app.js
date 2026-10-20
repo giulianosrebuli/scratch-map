@@ -18,7 +18,7 @@
     layers: { country: true, state: true, city: true, airport: true, landmark: true, ...store.get('layers', {}) },
     visited: { country: [], state: [], city: [], airport: [], landmark: [] },
     cityShapes: { type: 'FeatureCollection', features: [] },
-    view: { type: 'none' },     // none (gaveta fechada) | add | add-city | add-list | add-photo | place | landmark-form
+    view: { type: 'none' },     // none (gaveta fechada) | add | add-city | add-airport | add-list | add-photo | place | landmark-form
     history: [],                // pilha de views para o "voltar"
     placing: null,              // formulário do landmark aberto: {marker, move}
     loaded: false,              // primeira carga feita (só depois disso há raspagem)
@@ -705,7 +705,7 @@
 
   // ------------------------------------------------------------------ gaveta
   // Uma gaveta só, que sobe de baixo por cima da barra de menu. Telas: add (as
-  // opções do +), add-city / add-photo (busca), place (o lugar) e landmark-form.
+  // opções do +), add-city / add-airport / add-photo (busca), place (o lugar) e landmark-form.
   // Aberta, ela trava o mapa (véu por cima) e tocar fora recolhe. A exceção é o
   // formulário do landmark: fica mais baixa e sem véu, porque usa o mapa.
   const sheet = $('#sheet');
@@ -830,6 +830,7 @@
     const ul = el(`<ul class="add-list">
       ${opt('city', '<i class="dot city"></i>', t('Cidade'), t('Busque e finque a bandeira. Marca o estado e o país junto.'))}
       ${opt('list', LIST_SVG, t('Lista de cidades'), t('Várias de uma vez: escolha o país e toque nas que você conhece.'))}
+      ${opt('airport', '<i class="dot airport"></i>', t('Aeroporto'), t('Busque pelo nome, pela cidade ou pelo código (GRU) e finque a bandeira.'))}
       ${opt('landmark', '<i class="dot landmark"></i>', t('Monumento'), t('A partir de uma foto; a posição vem do GPS dela.'))}
       ${opt('photo', CAMERA_SVG, t('Foto'), t('Escolha o lugar e depois as fotos.'))}
     </ul>`);
@@ -837,6 +838,7 @@
     ul.append(lmFile);
     $('[data-add="city"]', ul).addEventListener('click', () => go({ type: 'add-city', q: '' }));
     $('[data-add="list"]', ul).addEventListener('click', () => go({ type: 'add-list' }));
+    $('[data-add="airport"]', ul).addEventListener('click', () => go({ type: 'add-airport', q: '' }));
     $('[data-add="photo"]', ul).addEventListener('click', () => go({ type: 'add-photo', q: '' }));
     const lmBtn = $('[data-add="landmark"]', ul);
     lmBtn.addEventListener('click', () => lmFile.click());
@@ -868,6 +870,7 @@
   // que vai receber as fotos (tocar abre a escolha dos arquivos).
   const SEARCH = {
     'add-city': { title: t('Adicionar cidade'), kinds: ['city'], placeholder: t('Buscar cidade…') },
+    'add-airport': { title: t('Adicionar aeroporto'), kinds: ['airport'], placeholder: t('Nome, cidade ou código (GRU)…') },
     'add-photo': {
       title: t('Adicionar foto'), kinds: KINDS, placeholder: t('Em qual lugar? País, estado, cidade, aeroporto…'),
       hint: t('Toque no lugar para escolher as fotos. Enviar foto para um lugar não visitado já marca o lugar.'),
