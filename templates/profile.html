@@ -22,6 +22,19 @@
         <a class="gear" href="/settings" title="{{ _('Configurações') }}" aria-label="{{ _('Configurações') }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></a>
       </section>
       <div class="album-col" id="visited"></div>
+      {# no fim da página: levar este perfil a outra instalação ou apagá-lo #}
+      <p class="group-title profile-manage-title">{{ _('Este perfil') }}</p>
+      <section class="config-card profile-manage">
+        <p class="hint">{{ _('Um .zip só com as visitas, os monumentos, as fotos e as configurações deste perfil, para levar a outra instalação (lá: Adicionar perfil → Importar um perfil).') }}</p>
+        <a class="btn secondary" id="profile-export" href="/api/profile/export" download>{{ _('Exportar este perfil') }}</a>
+        {% if profile_count > 1 %}
+        <div class="backup-restore">
+          <b>{{ _('Apagar') }}</b>
+          <small>{{ _('Apaga as visitas, os monumentos, as fotos e as configurações deste perfil. Os outros perfis não mudam. A pasta dele fica guardada no servidor, em data/profiles-removed/.') }}</small>
+          <button class="btn danger" id="delete-profile">{{ _('Apagar este perfil') }}</button>
+        </div>
+        {% endif %}
+      </section>
     </div>
   </main>
 

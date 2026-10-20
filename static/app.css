@@ -986,3 +986,37 @@ body.no-intro #setup-map, body.no-intro .setup, body.no-intro .setup-card { tran
 .token-created { margin-top: 10px; padding: 10px; border-radius: 10px; background: var(--bg); display: flex; flex-direction: column; gap: 6px; }
 .token-created code { word-break: break-all; user-select: all; }
 .token-created .btn { align-self: flex-start; }
+
+/* Configurações em abas (settings.html): barra lateral como a do Ubuntu */
+.settings {
+  display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 28px; align-items: start;
+  width: 100%; box-sizing: border-box; max-width: 1080px; margin: 0 auto; padding: 20px 16px var(--nav-clear);
+}
+.settings-nav { position: sticky; top: 16px; display: flex; flex-direction: column; gap: 2px; }
+.settings-nav h1 { font-size: 22px; margin: 6px 12px 12px; }
+.settings-nav .nav-back { color: var(--muted); text-decoration: none; padding: 2px 12px; font-size: 14px; }
+.settings-nav a[data-tab] {
+  display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px;
+  color: var(--ink); text-decoration: none; font-weight: 500;
+}
+.settings-nav a[data-tab]:hover { background: color-mix(in srgb, var(--card) 60%, transparent); }
+.settings-nav a[aria-current] { background: var(--card); box-shadow: 0 1px 3px rgba(0, 0, 0, .08); font-weight: 650; }
+.settings-nav svg { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.settings-pane:not([hidden]) { display: flex; flex-direction: column; gap: 12px; }
+.pane-head h2 { font-size: 22px; margin: 6px 0 4px; }
+.pane-head .pane-back { display: none; }
+.pane-sub { margin: 10px 0 0; }
+.profile-manage-title { margin-top: 18px; }
+@media (max-width: 760px) {
+  .settings { grid-template-columns: 1fr; gap: 0; }
+  .settings-nav { position: static; }
+  body.pane-open .settings-nav { display: none; }
+  body:not(.pane-open) .settings-panes { display: none; }
+  /* lista do celular: linhas de cartão, com seta */
+  .settings-nav a[data-tab] { background: var(--card); border-radius: 0; border-bottom: 1px solid var(--line); padding: 14px; }
+  .settings-nav a[data-tab]:first-of-type { border-radius: 12px 12px 0 0; }
+  .settings-nav a[data-tab]:last-of-type { border-radius: 0 0 12px 12px; border-bottom: none; }
+  .settings-nav a[data-tab]::after { content: "›"; margin-left: auto; color: var(--muted); font-size: 20px; }
+  .settings-nav a[aria-current] { box-shadow: none; font-weight: 500; }
+  .pane-head .pane-back { display: inline-block; color: var(--muted); text-decoration: none; font-size: 14px; }
+}
