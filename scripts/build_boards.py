@@ -32,7 +32,7 @@ TOLERANCE = {"countries": 0.01, "states": 0.002}
 
 
 def continents():
-    """ISO → (continente, sub-região) do Natural Earth 10m."""
+    """ISO → (continente, sub-região, código de 3 letras) do Natural Earth 10m."""
     d = json.loads((GEODATA / "raw" / "ne_10m_admin_0_countries.geojson").read_text())
     best = {}
     for f in d["features"]:
@@ -44,7 +44,8 @@ def continents():
         # seas"): vale o país em si, o mais populoso
         rank = (p["CONTINENT"] != "Seven seas (open ocean)", p.get("POP_EST") or 0)
         if iso not in best or rank > best[iso][0]:
-            best[iso] = (rank, (p["CONTINENT"], p["SUBREGION"]))
+            iso3 = p.get("ISO_A3") if p.get("ISO_A3") not in (None, "-99") else p.get("ADM0_A3")
+            best[iso] = (rank, (p["CONTINENT"], p["SUBREGION"], iso3))
     return {iso: v for iso, (_, v) in best.items()}
 
 
@@ -62,8 +63,9 @@ def polygons(g, tol):
 def main():
     if "--continents" in sys.argv:  # só refaz a tabela de continentes
         con = sqlite3.connect(OUT)
-        con.execute("DELETE FROM continents")
-        con.executemany("INSERT INTO continents VALUES (?, ?, ?)", [(k, *v) for k, v in continents().items()])
+        con.execute("DROP TABLE IF EXISTS continents")
+        con.execute("CREATE TABLE continents (country_id TEXT PRIMARY KEY, continent TEXT, subregion TEXT, iso3 TEXT)")
+        con.executemany("INSERT INTO continents VALUES (?, ?, ?, ?)", [(k, *v) for k, v in continents().items()])
         con.commit()
         return
     tmp = OUT.with_suffix(".tmp")
@@ -72,9 +74,9 @@ def main():
     con.executescript("""
         CREATE TABLE shapes (kind TEXT, id TEXT, country_id TEXT, geom BLOB, PRIMARY KEY (kind, id));
         CREATE INDEX shapes_country ON shapes(country_id);
-        CREATE TABLE continents (country_id TEXT PRIMARY KEY, continent TEXT, subregion TEXT);
+        CREATE TABLE continents (country_id TEXT PRIMARY KEY, continent TEXT, subregion TEXT, iso3 TEXT);
     """)
-    con.executemany("INSERT INTO continents VALUES (?, ?, ?)", [(k, *v) for k, v in continents().items()])
+    con.executemany("INSERT INTO continents VALUES (?, ?, ?, ?)", [(k, *v) for k, v in continents().items()])
     t = time.time()
     for layer, tol in TOLERANCE.items():
         n = 0

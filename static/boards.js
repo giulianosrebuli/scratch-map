@@ -10,7 +10,6 @@
   const root = $('#boards');
   const NS = 'http://www.w3.org/2000/svg';
   const [CW, CH] = [1500, 1000];
-  const LIST = { x: 100, y: 290, bottom: 900 };  // área da lista (boards.LIST)
   // nos quadros, todo nome em caixa alta (boards.CAPS mede a largura assim)
   const up = (s) => s.toLocaleUpperCase(document.documentElement.lang || 'pt-BR');
   const reduced = () => window.PREFS?.skip_animations || matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -120,7 +119,7 @@
     L.cut ??= Infinity;
     const listSVG = all.map((m, i) => {
       const col = Math.floor(i / L.rows), row = i % L.rows;
-      const x = LIST.x + col * L.col_w, y = LIST.y + row * L.row_h + L.size * 0.8;
+      const x = L.x + col * L.col_w, y = L.top + row * L.row_h + L.size * 0.8;
       const name = up(m.name.length > L.cut ? `${m.name.slice(0, L.cut - 1)}…` : m.name);
       return `<g class="item" data-id="${esc(m.id)}"><title>${esc(m.name)}</title>
         <rect class="swatch" x="${x}" y="${y - L.size * 0.62}" width="${L.size * 1.15}" height="${L.size * 0.62}" rx="2"/>
@@ -134,9 +133,9 @@
     svg.innerHTML = `${DEFS}${frameSVG()}
       <text x="100" y="178" class="title" style="font-size:${Math.min(76, 600 / (b.title.length * 0.8))}px">${esc(b.title)}</text>
       <text x="103" y="226" class="subtitle"></text>
-      <line x1="100" y1="250" x2="${100 + Math.max(L.width - 30, 420)}" y2="250" class="rule"/>
+      <line x1="100" y1="250" x2="${100 + Math.max(Math.min(L.width, 640) - 30, 420)}" y2="250" class="rule"/>
       <g class="list">${listSVG}</g>
-      ${b.off.length ? `<text x="${LIST.x}" y="${LIST.bottom + 22}" class="note">* ${t('fora do quadro (longe do território principal)')}</text>` : ''}
+      ${b.off.length ? `<text x="140" y="${L.bottom + 24}" class="note">* ${t('fora do quadro (longe do território principal)')}</text>` : ''}
       <g class="members" filter="url(#lift)">${b.members.map((m) => `<g class="member" data-id="${esc(m.id)}">
         <path class="paint" d="${m.d}"/><path class="ptex" d="${m.d}"/>
         <g class="foil"><path class="base" d="${m.d}"/><path class="tex" d="${m.d}"/></g></g>`).join('')}</g>
