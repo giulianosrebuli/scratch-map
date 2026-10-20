@@ -922,7 +922,6 @@ body.no-intro #setup-map, body.no-intro .setup, body.no-intro .setup-card { tran
 .date-form select { padding: 5px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; font-size: 14px; }
 .date-form .btn.small { align-self: auto; }
 .hint.inherited b { font-weight: 600; letter-spacing: .02em; }
-.list.years .year { font-size: 17px; min-width: 48px; }
 
 /* Quadros de raspar (/boards, static/boards.js): fundo escuro; o quadro é um
    SVG 3:2 que escala por inteiro */
