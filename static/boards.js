@@ -55,14 +55,10 @@
       <feComposite in2="SourceGraphic" operator="in"/>
       <feBlend in="SourceGraphic" mode="multiply"/>
     </filter>
-    <!-- textura da película: guilhochê (ondas finas cruzadas, como nas
-         cartelas de raspar), escuro e claro para parecer gravado no metal -->
-    <pattern id="tex1" width="34" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(-28)">
-      <path d="M0 4Q8.5 0 17 4T34 4" fill="none" stroke="#4a360c" stroke-opacity=".38" stroke-width=".9"/>
-      <path d="M0 5.6Q8.5 1.6 17 5.6T34 5.6" fill="none" stroke="#fff4c4" stroke-opacity=".32" stroke-width=".6"/>
-    </pattern>
-    <pattern id="tex2" width="40" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(31)">
-      <path d="M0 5Q10 1 20 5T40 5" fill="none" stroke="#4a360c" stroke-opacity=".22" stroke-width=".8"/>
+    <!-- textura da película: papel metálico amassado (scripts/foil_texture.py),
+         em cinza, aplicada por cima do dourado em modo overlay -->
+    <pattern id="paper" width="420" height="420" patternUnits="userSpaceOnUse">
+      <image href="/static/textures/foil.png" width="420" height="420"/>
     </pattern>
     <filter id="lift"><feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#000" flood-opacity=".55"/></filter>
   </defs>`;
@@ -135,7 +131,7 @@
       ${b.off.length ? `<text x="${LIST.x}" y="${LIST.bottom + 22}" class="note">* ${t('fora do quadro (longe do território principal)')}</text>` : ''}
       <g class="members" filter="url(#lift)">${b.members.map((m) => `<g class="member" data-id="${esc(m.id)}">
         <path class="paint" d="${m.d}" fill="${colorOf(m.id)}"/>
-        <g class="foil"><path class="base" d="${m.d}"/><path class="tex1" d="${m.d}"/><path class="tex2" d="${m.d}"/></g></g>`).join('')}</g>
+        <g class="foil"><path class="base" d="${m.d}"/><path class="tex" d="${m.d}"/></g></g>`).join('')}</g>
       <g class="callouts">${b.members.filter((m) => m.callout).map((m) => {
         const c = m.callout, left = c.side === 'left';
         return `<g class="callout" data-id="${esc(m.id)}"><line x1="${c.tx}" y1="${c.ty}" x2="${c.x + (left ? 4 : -4)}" y2="${c.y}"/>
