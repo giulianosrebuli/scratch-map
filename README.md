@@ -90,8 +90,10 @@ systemd de usuário. Acesso pela rede de casa ou por VPN (ex.: Tailscale).
   sigla. No fim, as listas de aeroportos e monumentos. Entre os totais e os
   países, **Por ano**: um ano por linha com quantos lugares de cada tipo; tocar
   abre os lugares daquele ano, mês a mês (`/perfil#2024`).
-- **Data da visita**: na gaveta do lugar, **Quando** guarda mês e ano de cada
-  visita (pode ter várias; o ano vai até o atual). Pôr uma data num lugar não
+- **Data da visita**: na gaveta do lugar, **Quando** guarda ano e mês de cada
+  visita (pode ter várias; o ano vai até o atual). O mês é opcional: para
+  lugar onde morou, ou viagem de que só lembra o ano, fica só o ano (que
+  também cala as sugestões das fotos daquele ano). Pôr uma data num lugar não
   marcado já marca. Estado e país mostram também as datas do que tem dentro
   deles (cidades, aeroportos, monumentos), e a cidade, as dos monumentos dela.
   Fotos com data de um mês sem visita aparecem como sugestão ("+ SET 2015

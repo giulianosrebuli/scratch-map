@@ -26,9 +26,9 @@
     const [y, m, d] = iso.split('-');
     return `${d} ${MONTHS[+m - 1]} ${y}`;
   };
-  const fmtMonth = (ym) => {  // AAAA-MM (data de visita)
+  const fmtMonth = (ym) => {  // AAAA-MM ou só AAAA (data de visita)
     const [y, m] = ym.split('-');
-    return `${MONTHS[+m - 1]} ${y}`;
+    return m ? `${MONTHS[+m - 1]} ${y}` : y;
   };
   const store = {
     // por perfil (o aparelho pode ser de mais de uma pessoa); o perfil 1 ainda

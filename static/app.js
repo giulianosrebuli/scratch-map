@@ -1121,16 +1121,16 @@
     chips.append(add);
     add.addEventListener('click', () => {
       const now = new Date();
-      const months = Array.from({ length: 12 }, (_, i) => `<option value="${String(i + 1).padStart(2, '0')}">${fmtMonth(`2000-${i + 1}`).split(' ')[0]}</option>`);
+      // mês opcional: lugar onde morou, ou viagem de que só lembra o ano
+      const months = [`<option value="">${t('Mês')}</option>`, ...Array.from({ length: 12 }, (_, i) => `<option value="${String(i + 1).padStart(2, '0')}">${fmtMonth(`2000-${i + 1}`).split(' ')[0]}</option>`)];
       const years = Array.from({ length: now.getFullYear() - 1899 }, (_, i) => now.getFullYear() - i).map((y) => `<option>${y}</option>`);
       const form = el(`<form class="date-form">
         <select name="m" aria-label="${esc(t('Mês'))}">${months.join('')}</select>
         <select name="y" aria-label="${esc(t('Ano'))}">${years.join('')}</select>
         <button class="btn small">${t('Salvar')}</button></form>`);
-      form.m.value = String(now.getMonth() + 1).padStart(2, '0');
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
-        await api(url, json('POST', { month: `${form.y.value}-${form.m.value}` }));
+        await api(url, json('POST', { month: form.m.value ? `${form.y.value}-${form.m.value}` : form.y.value }));
         reopen();
       });
       add.hidden = true;  // não tirar do DOM: o toque fora da gaveta a recolhe (alvo solto conta como fora)
@@ -1141,7 +1141,7 @@
       box.append(el(`<p class="hint inherited">${p.kind === 'city' ? t('Pelos monumentos:') : t('Pelo que tem dentro:')} ${via.join(' · ')}</p>`));
     }
     if (!p.dates.length && !p.inherited.length && !p.suggested.length) {
-      box.append(el(`<p class="hint">${t('Quando você esteve aqui? Mês e ano bastam; dá para pôr mais de uma visita.')}</p>`));
+      box.append(el(`<p class="hint">${t('Quando você esteve aqui? O ano basta (o mês é opcional); dá para pôr mais de uma visita.')}</p>`));
     }
     return box;
   }

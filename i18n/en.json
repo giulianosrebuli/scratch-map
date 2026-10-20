@@ -307,7 +307,6 @@
  "Ano": "Year",
  "Pelos monumentos:": "From landmarks:",
  "Pelo que tem dentro:": "From places inside:",
- "Quando você esteve aqui? Mês e ano bastam; dá para pôr mais de uma visita.": "When were you here? Month and year are enough; you can add more than one visit.",
  "Por ano": "By year",
  "Nenhuma visita com data em {ano}.": "No dated visits in {ano}.",
  "{n} país": "{n} country",
@@ -316,5 +315,7 @@
  "{n} estados": "{n} states",
  "{n} aeroporto": "{n} airport",
  "{n} aeroportos": "{n} airports",
- "{n} monumento": "{n} landmark"
+ "{n} monumento": "{n} landmark",
+ "Quando você esteve aqui? O ano basta (o mês é opcional); dá para pôr mais de uma visita.": "When were you here? The year is enough (month is optional); you can add more than one visit.",
+ "Sem mês": "No month"
 }

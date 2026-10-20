@@ -81,12 +81,12 @@ CREATE TABLE IF NOT EXISTS landmarks (
     draft INTEGER NOT NULL DEFAULT 1,  -- 1 enquanto o formulário de criação não foi salvo
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
--- Quando: mês e ano de cada visita a um lugar (pode ter várias). Estado e país
+-- Quando: ano (e mês, se quiser) de cada visita a um lugar (pode ter várias). Estado e país
 -- também herdam as datas do que tem dentro deles (place_dates).
 CREATE TABLE IF NOT EXISTS visit_dates (
     kind TEXT NOT NULL,
     ref_id TEXT NOT NULL,
-    month TEXT NOT NULL,         -- AAAA-MM
+    month TEXT NOT NULL,         -- AAAA-MM, ou só AAAA (mês opcional)
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     PRIMARY KEY (kind, ref_id, month)
 );
@@ -1342,7 +1342,7 @@ def place(kind, ref_id):
                     **place_dates(kind, str(ref_id), photos)})
 
 
-MONTH_RE = re.compile(r"^(\d{4})-(0[1-9]|1[0-2])$")
+MONTH_RE = re.compile(r"^(\d{4})(-(0[1-9]|1[0-2]))?$")  # AAAA-MM ou só AAAA
 DATED_SQL = """
     SELECT d.kind, d.ref_id, d.month,
            CASE d.kind WHEN 'airport' THEN a.id || ' — ' || a.name
@@ -1382,15 +1382,16 @@ def place_dates(kind, ref_id, photos):
     for r in rows:
         if contains(kind, ref_id, r):
             inherited.setdefault(r["month"], []).append({"kind": r["kind"], "id": r["ref_id"], "name": r["name"]})
-    known = set(own) | set(inherited)
-    suggested = sorted({p["taken_on"][:7] for p in photos if p.get("taken_on")} - known)
+    known = set(own) | set(inherited)  # só o ano (morei lá) cobre os meses dele
+    suggested = sorted(m for m in {p["taken_on"][:7] for p in photos if p.get("taken_on")}
+                       if m not in known and m[:4] not in known)
     return {"dates": own, "inherited": [{"month": m, "places": inherited[m]} for m in sorted(inherited)],
             "suggested": suggested}
 
 
 @app.post("/api/place/<kind>/<ref_id>/dates")
 def add_date(kind, ref_id):
-    """Acrescenta uma visita (mês e ano). Marca o lugar, se ainda não estava."""
+    """Acrescenta uma visita (ano, ou mês e ano). Marca o lugar, se ainda não estava."""
     if kind not in PHOTO_KINDS:
         abort(400)
     month = str((request.get_json(force=True) or {}).get("month", ""))
