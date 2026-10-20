@@ -1,6 +1,6 @@
 /* scratch map — frontend (vanilla JS + MapLibre, sem build). */
 (() => {
-  const { $, esc, api, json, fmtDate, store, el, print, lightbox, t } = window.SM;
+  const { $, esc, api, json, fmtDate, fmtMonth, store, el, print, lightbox, t } = window.SM;
   const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
   const C = {
     water: css('--water'), land: css('--land'), border: css('--border'),
@@ -692,11 +692,12 @@
     paintVisited();
   }
 
-  async function toggleVisit(kind, id, on, hasPhotos = 0) {
+  async function toggleVisit(kind, id, on, hasPhotos = 0, hasDates = 0) {
     if (on) {
       await api('/api/visits', json('POST', { kind, id }));
     } else {
       if (hasPhotos && !confirm(t('Desmarcar também remove {n} foto(s) deste lugar. Continuar?', { n: hasPhotos }))) return false;
+      if (!hasPhotos && hasDates && !confirm(t('Desmarcar também apaga as datas de visita deste lugar. Continuar?'))) return false;
       await api(`/api/visits/${kind}/${encodeURIComponent(id)}`, { method: 'DELETE' });
     }
     await loadVisited();
@@ -1021,6 +1022,7 @@
       <input type="file" accept="image/*,.heic,.heif" multiple hidden>
     </div>`);
     body.append(actions);
+    if (p.visited || p.kind === 'landmark') body.append(visitDates(p, () => reopen()));
 
     // Clicou num ponto do mapa: oferece cidades/aeroportos ali perto para marcar.
     if (point && (p.kind === 'state' || p.kind === 'country')) {
@@ -1071,7 +1073,7 @@
     });
     actions.querySelector('[data-act="unmark"]')?.addEventListener('click', async () => {
       if (!p.explicit) return toast(IMPLIED_MSG[p.kind]);
-      if (await toggleVisit(p.kind, p.id, false, p.photos.length) === false) return;
+      if (await toggleVisit(p.kind, p.id, false, p.photos.length, p.dates.length) === false) return;
       if (isVisited(p.kind, p.id)) toast(IMPLIED_MSG[p.kind]);  // ainda tem cidade marcada aqui
       reopen();
     });
@@ -1094,6 +1096,54 @@
       await uploadPhotos(p.kind, p.id, file.files);
       reopen();
     });
+  }
+
+  // Quando: as visitas do lugar (mês e ano; pode ter várias), as que ele herda
+  // do que tem dentro (cidades de um estado etc.) e as sugeridas pelas fotos.
+  function visitDates(p, reopen) {
+    const box = el(`<div class="when"><p class="group-title">${t('Quando')}</p><div class="chips"></div></div>`);
+    const chips = $('.chips', box);
+    const url = `/api/place/${p.kind}/${encodeURIComponent(p.id)}/dates`;
+    for (const m of p.dates) {
+      const c = el(`<span class="chip">${fmtMonth(m)}<button aria-label="${esc(t('Remover'))}">×</button></span>`);
+      $('button', c).addEventListener('click', async () => {
+        await api(`${url}/${m}`, { method: 'DELETE' });
+        reopen();
+      });
+      chips.append(c);
+    }
+    for (const m of p.suggested) {
+      const c = el(`<button class="chip suggest" title="${esc(t('Pelas fotos'))}">+ ${fmtMonth(m)} <small>${t('pelas fotos')}</small></button>`);
+      c.addEventListener('click', async () => { await api(url, json('POST', { month: m })); reopen(); });
+      chips.append(c);
+    }
+    const add = el(`<button class="chip add">+ ${t('Adicionar data')}</button>`);
+    chips.append(add);
+    add.addEventListener('click', () => {
+      const now = new Date();
+      const months = Array.from({ length: 12 }, (_, i) => `<option value="${String(i + 1).padStart(2, '0')}">${fmtMonth(`2000-${i + 1}`).split(' ')[0]}</option>`);
+      const years = Array.from({ length: now.getFullYear() - 1899 }, (_, i) => now.getFullYear() - i).map((y) => `<option>${y}</option>`);
+      const form = el(`<form class="date-form">
+        <select name="m" aria-label="${esc(t('Mês'))}">${months.join('')}</select>
+        <select name="y" aria-label="${esc(t('Ano'))}">${years.join('')}</select>
+        <button class="btn small">${t('Salvar')}</button></form>`);
+      form.m.value = String(now.getMonth() + 1).padStart(2, '0');
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await api(url, json('POST', { month: `${form.y.value}-${form.m.value}` }));
+        reopen();
+      });
+      add.hidden = true;  // não tirar do DOM: o toque fora da gaveta a recolhe (alvo solto conta como fora)
+      add.after(form);
+    });
+    if (p.inherited.length) {
+      const via = p.inherited.map((d) => `<span class="via"><b>${fmtMonth(d.month)}</b> ${d.places.map((x) => esc(x.name)).join(', ')}</span>`);
+      box.append(el(`<p class="hint inherited">${p.kind === 'city' ? t('Pelos monumentos:') : t('Pelo que tem dentro:')} ${via.join(' · ')}</p>`));
+    }
+    if (!p.dates.length && !p.inherited.length && !p.suggested.length) {
+      box.append(el(`<p class="hint">${t('Quando você esteve aqui? Mês e ano bastam; dá para pôr mais de uma visita.')}</p>`));
+    }
+    return box;
   }
 
   // ------------------------------------------------------------------ landmarks

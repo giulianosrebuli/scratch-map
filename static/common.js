@@ -26,6 +26,10 @@
     const [y, m, d] = iso.split('-');
     return `${d} ${MONTHS[+m - 1]} ${y}`;
   };
+  const fmtMonth = (ym) => {  // AAAA-MM (data de visita)
+    const [y, m] = ym.split('-');
+    return `${MONTHS[+m - 1]} ${y}`;
+  };
   const store = {
     // por perfil (o aparelho pode ser de mais de uma pessoa); o perfil 1 ainda
     // lê as chaves de antes dos perfis
@@ -133,7 +137,7 @@
   });
 
   window.SM = {
-    $, esc, api, json, fmtDate, store, el, print, t, LANG,
+    $, esc, api, json, fmtDate, fmtMonth, store, el, print, t, LANG,
     lightbox: { open, close, isOpen: () => !!st },
   };
 })();

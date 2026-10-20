@@ -87,7 +87,16 @@ systemd de usuário. Acesso pela rede de casa ou por VPN (ex.: Tailscale).
   dos não visitados começa dobrada, com "Ver mais"). Tocar
   num país mostra os estados; num estado, as cidades; numa cidade, abre no
   mapa (`/perfil#BR`, `/perfil#BR/BR-SP`). Estado/cidade sem bandeira mostra a
-  sigla. No fim, as listas de aeroportos e monumentos.
+  sigla. No fim, as listas de aeroportos e monumentos. Entre os totais e os
+  países, **Por ano**: um ano por linha com quantos lugares de cada tipo; tocar
+  abre os lugares daquele ano, mês a mês (`/perfil#2024`).
+- **Data da visita**: na gaveta do lugar, **Quando** guarda mês e ano de cada
+  visita (pode ter várias; o ano vai até o atual). Pôr uma data num lugar não
+  marcado já marca. Estado e país mostram também as datas do que tem dentro
+  deles (cidades, aeroportos, monumentos), e a cidade, as dos monumentos dela.
+  Fotos com data de um mês sem visita aparecem como sugestão ("+ SET 2015
+  pelas fotos"): um toque grava, nada é gravado sozinho. Desmarcar o lugar
+  apaga as datas dele (com aviso).
 - **Marcação implícita**: cidade marca o estado e o país dela; estado marca o
   país. **Aeroporto não marca nada.** O implícito é calculado na hora, não é
   gravado: desmarcar a última cidade de um estado desmarca o estado, a menos que
