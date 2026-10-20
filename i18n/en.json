@@ -293,5 +293,8 @@
  "só dá para importar num perfil novo": "you can only import into a new profile",
  "este arquivo é um backup do servidor inteiro: ele se restaura em Configurações → Backup": "this file is a backup of the whole server: restore it in Settings → Backup",
  "Pular animações": "Skip animations",
- "Sem a descida até a vista inicial ao abrir o app e sem a raspagem ao marcar um lugar.": "No zoom-in to the start view when opening the app and no scratch-off when marking a place."
+ "Sem a descida até a vista inicial ao abrir o app e sem a raspagem ao marcar um lugar.": "No zoom-in to the start view when opening the app and no scratch-off when marking a place.",
+ "Busque pelo nome, pela cidade ou pelo código (GRU) e finque a bandeira.": "Search by name, city or code (GRU) and plant the flag.",
+ "Adicionar aeroporto": "Add airport",
+ "Nome, cidade ou código (GRU)…": "Name, city or code (GRU)…"
 }
