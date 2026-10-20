@@ -340,6 +340,12 @@ def index():
     return render_template("index.html", geo_v=geo_v, settings=settings())
 
 
+@app.get("/raspar")
+def raspar():
+    """Mapa de raspar tradicional (pôster): preview, ainda sem link no menu."""
+    return render_template("raspar.html", geo_v=int(TILES.stat().st_mtime))
+
+
 def settings():
     """Configurações da instância (tabela settings). Ver prefs() e a página
     /config. Vista inicial do mapa: start_view = country (cidades visitadas em
