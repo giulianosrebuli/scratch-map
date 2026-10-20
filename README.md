@@ -186,7 +186,10 @@ systemd de usuário. Acesso pela rede de casa ou por VPN (ex.: Tailscale).
   abas, como as do Ubuntu, com uma barra lateral à esquerda; no celular, a
   barra é uma lista e a aba abre por cima, com voltar. Cada aba tem endereço
   (`/settings#backup`).
-  - **Idioma**;
+  - **Geral**: idioma e, embaixo, sobre o app: versão e data de publicação
+    (`version.py`), link do código e, em "Dados do mapa", o modo
+    (Leve/Completo), a versão do Overture, a data da montagem e as fontes com
+    as licenças;
   - **Aparência**: tema claro, escuro ou automático (segue o sistema; no
     escuro, as fotos impressas continuam papel branco); cores do mapa (água,
     terra, país, estado, cidade, aeroporto, monumento), com prévia ao vivo e
@@ -202,10 +205,7 @@ systemd de usuário. Acesso pela rede de casa ou por VPN (ex.: Tailscale).
     Nominatim; bandeiras de estado, no Wikidata/Commons), dizendo o que sai e
     para quem. Desligado, o pedido não acontece;
   - **Chaves de API**: os tokens de integração deste perfil (criar, revogar);
-  - **Backup**: baixar um .zip com todos os perfis do servidor; restaurar;
-  - **Sobre o app**: versão e data de publicação (`version.py`), link do
-    código e, em "Dados do mapa", o modo (Leve/Completo), a versão do
-    Overture, a data da montagem e as fontes com as licenças.
+  - **Backup**: baixar um .zip com todos os perfis do servidor; restaurar.
   Exportar e apagar o perfil ficam no fim da página do Perfil ("Este perfil").
   Fica tudo na tabela `settings` (vale em todos os aparelhos) e entra no
   `<head>` de cada página (`templates/_head.html`).
