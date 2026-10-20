@@ -26,8 +26,10 @@
     const [y, m, d] = iso.split('-');
     return `${d} ${MONTHS[+m - 1]} ${y}`;
   };
-  const fmtMonth = (ym) => {  // AAAA-MM ou só AAAA (data de visita)
-    const [y, m] = ym.split('-');
+  // data de visita: AAAA-MM, AAAA ou período início/fim (2010/2018)
+  const fmtMonth = (when) => {
+    if (when.includes('/')) return when.split('/').map(fmtMonth).join(' – ');
+    const [y, m] = when.split('-');
     return m ? `${MONTHS[+m - 1]} ${y}` : y;
   };
   const store = {

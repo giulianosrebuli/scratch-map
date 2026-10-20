@@ -263,7 +263,7 @@ paths:
       tags: [visitas, integração]
       summary: Acrescenta uma data de visita
       description: |
-        Ano (e, se quiser, mês) de uma visita ao lugar (pode ter várias). País, estado,
+        Ano (e, se quiser, mês) de uma visita ao lugar, ou um período (pode ter várias). País, estado,
         cidade ou aeroporto sem visita também ficam **marcados**. Repetir a
         mesma data não faz nada.
       parameters:
@@ -301,6 +301,7 @@ paths:
       summary: Visitas por ano
       description: |
         Um item por ano com data de visita, do mais recente ao mais antigo.
+        Um período entra em todos os anos dele.
         `counts` conta os lugares de cada tipo, com estado e país contando
         pelo que tem data dentro deles; `months` lista, por mês, os lugares
         que têm a data.
@@ -1155,9 +1156,12 @@ components:
           description: Meses das fotos do lugar que ainda não têm visita (sugestão; nada é gravado).
     Month:
       type: string
-      pattern: "^\\d{4}(-(0[1-9]|1[0-2]))?$"
+      pattern: "^\\d{4}(-(0[1-9]|1[0-2]))?(/\\d{4}(-(0[1-9]|1[0-2]))?)?$"
       example: "2024-03"
-      description: Ano e mês (AAAA-MM) ou só o ano (AAAA), para lugar onde morou ou viagem de que não lembra o mês.
+      description: |
+        Data de visita: ano e mês (AAAA-MM), só o ano (AAAA) ou um período
+        início/fim, como um intervalo da ISO 8601 (`2010/2018`,
+        `2010-03/2018-06`), para lugar onde morou. O fim vem depois do início.
     SaveResult:
       type: object
       properties:

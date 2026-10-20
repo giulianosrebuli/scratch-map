@@ -128,7 +128,8 @@
     if (!d) return box.append(el(`<p class="empty">${t('Nenhuma visita com data em {ano}.', { ano: esc(y) })}</p>`));
     box.append(el(`<p class="hint">${esc(countsText(d.counts))}</p>`));
     for (const m of d.months) {
-      box.append(el(`<p class="group-title">${m.month.length === 4 ? t('Sem mês') : fmtMonth(m.month)}</p>`));
+      const title = m.month.length === 4 ? t('Sem mês') : fmtMonth(m.month);  // período: "2010 – 2018"
+      box.append(el(`<p class="group-title">${title}</p>`));
       const ul = el('<ul class="list"></ul>');
       for (const p of m.places) {
         const li = el(`<li><i class="dot ${p.kind}"></i><div class="name">${esc(p.name)}${p.country ? `<small>${esc(p.country)}</small>` : ''}</div></li>`);

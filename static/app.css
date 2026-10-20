@@ -915,7 +915,10 @@ body.no-intro #setup-map, body.no-intro .setup, body.no-intro .setup-card { tran
 .chip button { border: none; background: none; color: var(--muted); font-size: 16px; line-height: 1; padding: 0 0 0 2px; cursor: pointer; }
 .chip.suggest, .chip.add { cursor: pointer; border-style: dashed; color: var(--muted); font-weight: 500; }
 .chip.suggest small { font-weight: 400; }
-.date-form { display: inline-flex; gap: 6px; align-items: center; }
+.date-form { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.date-pick { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); font-size: 14px; }
+.date-pick[hidden] { display: none; }
+.date-form .error { flex-basis: 100%; margin: 0; color: #c0392b; }
 .date-form select { padding: 5px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; font-size: 14px; }
 .date-form .btn.small { align-self: auto; }
 .hint.inherited b { font-weight: 600; letter-spacing: .02em; }

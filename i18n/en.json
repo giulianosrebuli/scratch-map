@@ -316,6 +316,9 @@
  "{n} aeroporto": "{n} airport",
  "{n} aeroportos": "{n} airports",
  "{n} monumento": "{n} landmark",
- "Quando você esteve aqui? O ano basta (o mês é opcional); dá para pôr mais de uma visita.": "When were you here? The year is enough (month is optional); you can add more than one visit.",
- "Sem mês": "No month"
+ "Sem mês": "No month",
+ "Quando você esteve aqui? O ano basta (o mês é opcional); dá para pôr mais de uma visita, ou um período (onde morou).": "When were you here? The year is enough (month is optional); you can add more than one visit, or a period (where you lived).",
+ "até…": "until…",
+ "até": "until",
+ "O fim do período precisa ser depois do início.": "The end of the period must be after the start."
 }
