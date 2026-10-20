@@ -4,11 +4,11 @@
   <title>{{ _('Quadros') }} · Scratch Map</title>
 {% include '_head.html' %}
 </head>
-{# Quadros de raspar (boards.py, static/boards.js): /quadros escolhe o
-   continente; /quadros/continente/<slug> e /quadros/pais/<id> são o quadro. #}
+{# Quadros de raspar (boards.py, static/boards.js): /boards escolhe o
+   continente; /boards/continent/<slug> e /boards/country/<id> são o quadro. #}
 <body class="boards-page">
   <main class="boards-main" id="boards" data-ready="{{ 'true' if ready else 'false' }}"></main>
-  {% with page = 'quadros' %}{% include '_navbar.html' %}{% endwith %}
+  {% with page = 'boards' %}{% include '_navbar.html' %}{% endwith %}
   <div id="toast" role="status" hidden></div>
   <script>window.PREFS = {{ prefs | tojson }};</script>
   <script src="{{ url_for('static', filename='common.js') }}"></script>

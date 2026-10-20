@@ -1,4 +1,4 @@
-"""Quadros de raspar (/quadros): desenhos estáticos no estilo dos pôsteres.
+"""Quadros de raspar (/boards): desenhos estáticos no estilo dos pôsteres.
 
 Um quadro é um recorte fixo: um continente com seus países, ou um país com
 seus estados. Nada de zoom: o servidor projeta os contornos (boards.db, gerado
@@ -46,13 +46,13 @@ STUB = 12         # trecho reto do traço ao chegar no nome
 CONTINENTS = {
     # prune: só o bloco principal (o Havaí, as Bermudas e as ilhas menores dos
     # EUA ficariam soltos no meio do oceano e encolheriam o mapa)
-    "america-do-norte": {"pt": "América do Norte", "en": "North America", "bbox": (-170, 13, -50, 72), "prune": 0.15,
+    "north-america": {"pt": "América do Norte", "en": "North America", "bbox": (-170, 13, -50, 72), "prune": 0.15,
                          "match": lambda c, s: s == "Northern America" or c == "North America" and s not in ("Central America", "Caribbean")},
-    "america-central": {"pt": "América Central e Caribe", "en": "Central America & Caribbean", "bbox": (-93, 6.5, -59, 27),
+    "central-america": {"pt": "América Central e Caribe", "en": "Central America & Caribbean", "bbox": (-93, 6.5, -59, 27),
                         "match": lambda c, s: s in ("Central America", "Caribbean")},
-    "america-do-sul": {"pt": "América do Sul", "en": "South America", "bbox": (-82, -56, -34, 13),
+    "south-america": {"pt": "América do Sul", "en": "South America", "bbox": (-82, -56, -34, 13),
                        "match": lambda c, s: c == "South America"},
-    "europa": {"pt": "Europa", "en": "Europe", "bbox": (-25, 34, 45, 71.5),
+    "europe": {"pt": "Europa", "en": "Europe", "bbox": (-25, 34, 45, 71.5),
                "match": lambda c, s: c == "Europe"},
     "africa": {"pt": "África", "en": "Africa", "bbox": (-26, -36, 60, 38),
                "match": lambda c, s: c == "Africa"},
@@ -64,7 +64,7 @@ CONTINENTS = {
 MEXICO = "MX"  # o Natural Earth põe na América Central
 
 
-LAYOUT = 5  # suba quando mudar o desenho do quadro: invalida o cache em disco
+LAYOUT = 6  # suba quando mudar o desenho do quadro: invalida o cache em disco
 
 
 def disk_cached(fn):
@@ -427,7 +427,7 @@ def continent(boards_db, geo_db, slug, lang):
         if cid.startswith("X") and cid != "XK":  # áreas disputadas do Overture (XA…XZ), não países
             continue
         c, s = cont.get(cid, (None, None))
-        is_member = (cid == MEXICO and slug == "america-do-norte") or (cid != MEXICO and c is not None and spec["match"](c, s))
+        is_member = (cid == MEXICO and slug == "north-america") or (cid != MEXICO and c is not None and spec["match"](c, s))
         g = from_wkb(r["geom"])
         if c is None:  # sem continente no Natural Earth: o recorte mais justo que contém o ponto central
             pt = g.representative_point()
@@ -446,7 +446,7 @@ def continent(boards_db, geo_db, slug, lang):
 def continent_of(boards_db, cid):
     """Slug do quadro de continente em que o país está (para a navegação)."""
     if cid == MEXICO:
-        return "america-do-norte"
+        return "north-america"
     r = _db(boards_db).execute("SELECT continent, subregion FROM continents WHERE country_id = ?", (cid,)).fetchone()
     return next((slug for slug, spec in CONTINENTS.items() if r and spec["match"](r[0], r[1])), None)
 

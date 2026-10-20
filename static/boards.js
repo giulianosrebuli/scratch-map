@@ -1,6 +1,6 @@
 /* scratch map — quadros de raspar (boards.py faz o mapa e decide onde vai
-   cada nome; aqui se monta o quadro, se pinta e se raspa). /quadros: escolher
-   o continente; /quadros/continente/<slug> e /quadros/pais/<id>: o quadro.
+   cada nome; aqui se monta o quadro, se pinta e se raspa). /boards: escolher
+   o continente; /boards/continent/<slug> e /boards/country/<id>: o quadro.
 
    Todo quadro é um SVG só, sempre 3:2 (1500 × 1000), deitado: moldura, título
    no alto à esquerda, a lista (também raspável) embaixo dele e o mapa à
@@ -89,7 +89,7 @@
     const grid = el('<div class="board-cards"></div>');
     for (const b of boards) {
       const n = b.members.filter((id) => isOn('country', id)).length;
-      grid.append(el(`<a class="board-card" href="/quadros/continente/${b.id}">
+      grid.append(el(`<a class="board-card" href="/boards/continent/${b.id}">
         <svg viewBox="0 0 ${CW} ${CH}" aria-hidden="true">${DEFS}${frameSVG()}
           ${b.d.map((d, i) => `<path d="${d}" fill="${isOn('country', b.members[i]) ? 'url(#silver)' : 'url(#gold)'}"/>`).join('')}
           <text x="100" y="175" class="title">${esc(b.title)}</text></svg>
@@ -100,7 +100,7 @@
     if (mine.length) {
       root.append(el(`<p class="group-title">${t('Seus países')}</p>`));
       const chips = el('<div class="chips"></div>');
-      for (const c of mine) chips.append(el(`<a class="chip" href="/quadros/pais/${encodeURIComponent(c.id)}">${esc(c.name)}</a>`));
+      for (const c of mine) chips.append(el(`<a class="chip" href="/boards/country/${encodeURIComponent(c.id)}">${esc(c.name)}</a>`));
       root.append(chips);
     }
   }
@@ -110,8 +110,8 @@
     const b = await api(`/api/boards/${kind}/${encodeURIComponent(id)}`);
     const mk = b.member_kind;
     const all = [...b.members, ...b.off.map((m) => ({ ...m, off: true }))].sort((a, z) => a.name.localeCompare(z.name));
-    const crumbs = [`<a href="/quadros">${t('Quadros')}</a>`];
-    if (b.kind === 'country' && b.parent) crumbs.push(`<a href="/quadros/continente/${b.parent.id}">${esc(b.parent.title)}</a>`);
+    const crumbs = [`<a href="/boards">${t('Quadros')}</a>`];
+    if (b.kind === 'country' && b.parent) crumbs.push(`<a href="/boards/continent/${b.parent.id}">${esc(b.parent.title)}</a>`);
     crumbs.push(`<b>${esc(b.title)}</b>`);
     root.append(el(`<nav class="album-crumbs">${crumbs.join(' › ')}</nav>`));
 
@@ -177,7 +177,7 @@
       if (!item) row.append(button(t('Raspar'), 'flag', async () => { await scratch(m); box.remove(); }));
       else if (item.explicit) row.append(button(t('Desmarcar'), 'secondary', async () => { await unscratch(m, item); box.remove(); }));
       else row.append(el(`<small>${mk === 'country' ? t('Marcado pelos estados ou cidades.') : t('Marcado pelas cidades.')}</small>`));
-      if (mk === 'country' && b.kind === 'continent') row.append(link(t('Abrir quadro'), `/quadros/pais/${encodeURIComponent(m.id)}`));
+      if (mk === 'country' && b.kind === 'continent') row.append(link(t('Abrir quadro'), `/boards/country/${encodeURIComponent(m.id)}`));
       row.append(link(t('Ver no mapa'), `/?open=${mk}:${encodeURIComponent(m.id)}`));
       row.append(button('×', 'ghost', () => box.remove()));
       document.body.append(box);
@@ -250,7 +250,7 @@
     await loadVisited();
     const [, , kind, id] = location.pathname.split('/');
     try {
-      await (kind ? boardView(kind === 'continente' ? 'continente' : 'pais', decodeURIComponent(id)) : index());
+      await (kind ? boardView(kind === 'continent' ? 'continent' : 'country', decodeURIComponent(id)) : index());
     } catch (e) {
       root.append(el(`<p class="empty">${t('Erro ao carregar: {erro}', { erro: esc(e.message) })}</p>`));
     }

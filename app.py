@@ -342,18 +342,18 @@ def index():
     return render_template("index.html", geo_v=geo_v, settings=settings())
 
 
-@app.get("/quadros")
-@app.get("/quadros/<kind>/<board_id>")
-def quadros(kind=None, board_id=None):
+@app.get("/boards")
+@app.get("/boards/<kind>/<board_id>")
+def boards_page(kind=None, board_id=None):
     """Quadros de raspar (boards.py): escolher o quadro e o quadro em si."""
-    return render_template("quadros.html", ready=BOARDS_DB.exists())
+    return render_template("boards.html", ready=BOARDS_DB.exists())
 
 
 def board(kind, board_id):
     lg = "pt" if lang() == "pt-BR" else "en"
-    if kind == "continente" and board_id in boards.CONTINENTS:
+    if kind == "continent" and board_id in boards.CONTINENTS:
         return boards.continent(str(BOARDS_DB), str(GEO_DB), board_id, lg)
-    if kind == "pais":
+    if kind == "country":
         b = boards.country(str(BOARDS_DB), str(GEO_DB), board_id, lg)
         slug = boards.continent_of(str(BOARDS_DB), board_id)
         return b and {**b, "parent": slug and {"id": slug, "title": boards.CONTINENTS[slug][lg]}}
@@ -367,7 +367,7 @@ def boards_index():
         abort(404)
     out = []
     for slug in boards.CONTINENTS:
-        b = board("continente", slug)
+        b = board("continent", slug)
         out.append({"id": slug, "title": b["title"], "members": [m["id"] for m in b["members"]] + [o["id"] for o in b["off"]],
                     "d": [m["d"] for m in b["members"]]})
     return jsonify(out)
