@@ -616,12 +616,20 @@ resposta): [`docs/openapi.yaml`](docs/openapi.yaml), também navegável no
 próprio app em **`/api/docs`** (e o arquivo em `/api/openapi.yaml`, para
 importar em outras ferramentas). A tabela abaixo é o resumo.
 
-Para integrações: o perfil é escolhido pelo cookie `perfil=<id>` (com um
-perfil só, não precisa), e não há autenticação, então a porta não deve ficar
-exposta na internet. Ainda não há versão estável das rotas.
+**Integrações** usam **`/api/v1`**, com token: `Authorization: Bearer sm_…`.
+O token é criado por perfil em Configurações → API para integrações (aparece
+uma vez só; no servidor fica o hash), diz o perfil e pode ser revogado. Em
+`/api/v1` estão as rotas de visitas, busca, lugar, datas, fotos, `stats` e
+`years` (o mesmo caminho depois do `/api`), mais `/api/v1/me`; os erros vêm
+em JSON. As rotas sem versão são as do próprio app no navegador: perfil pelo
+cookie `perfil=<id>` (com um perfil só, não precisa), sem token, e podem
+mudar junto com a interface. Elas não têm autenticação, então a porta não
+deve ficar exposta na internet.
 
 | Método | Rota | O quê |
 |---|---|---|
+| GET | `/api/v1/...` | integrações, com token (`Authorization: Bearer sm_…`); `/api/v1/me`: de quem é o token |
+| GET / POST / DELETE | `/api/tokens`, `/api/tokens/<id>` | tokens do perfil: listar, criar (`{name}`, devolve o token uma vez), revogar |
 | GET | `/api/visited` | visitados por tipo (explícitos + implícitos), com contagem de fotos |
 | PATCH | `/api/settings` | preferências (chaves da tabela em "Configuração"; `null` volta ao padrão); devolve as atuais |
 | GET | `/api/backup` | baixa o backup do servidor (.zip com todos os perfis) |

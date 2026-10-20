@@ -141,6 +141,50 @@
     }
   });
 
+  // ------------------------------------------------------------------ tokens da API
+  // Criar mostra o token uma vez só (no servidor fica o hash); revogar apaga.
+  const tokenList = $('#token-list');
+  async function loadTokens() {
+    const list = await api('/api/tokens');
+    tokenList.innerHTML = list.length ? '' : `<li class="hint">${t('Nenhum token ainda.')}</li>`;
+    for (const k of list) {
+      const li = document.createElement('li');
+      li.innerHTML = `<div><b></b> <code>sm_…${k.hint}</code><small>${t('Criado em {quando}', { quando: when(k.created_at.replace(' ', 'T') + 'Z') })} · ${
+        k.last_used_at ? t('último uso: {quando}', { quando: when(k.last_used_at.replace(' ', 'T') + 'Z') }) : t('nunca usado')}</small></div>
+        <button class="btn danger small">${t('Revogar')}</button>`;
+      li.querySelector('b').textContent = k.name;
+      li.querySelector('button').addEventListener('click', async () => {
+        if (!confirm(t('Revogar "{nome}"? O que usa este token para de funcionar na hora.', { nome: k.name }))) return;
+        await api(`/api/tokens/${k.id}`, { method: 'DELETE' });
+        $('#token-created').hidden = true;
+        loadTokens();
+      });
+      tokenList.append(li);
+    }
+  }
+  loadTokens().catch((e) => { tokenList.textContent = t('Não deu para ler: {erro}', { erro: e.message }); });
+  $('#token-new').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+    try {
+      const r = await api('/api/tokens', json('POST', { name: form.name.value.trim() }));
+      $('#token-value').textContent = r.token;
+      $('#token-created').hidden = false;
+      form.reset();
+      loadTokens();
+    } catch (err) {
+      toast(t('Não deu: {erro}', { erro: err.message }));
+    }
+  });
+  $('#token-copy').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText($('#token-value').textContent);
+      toast(t('Copiado'));
+    } catch {  // sem HTTPS o navegador não deixa: seleciona para copiar à mão
+      getSelection().selectAllChildren($('#token-value'));
+    }
+  });
+
   // ------------------------------------------------------------------ perfil
   $('#delete-profile')?.addEventListener('click', async () => {
     if (!confirm(t('Apagar este perfil? As visitas, os monumentos, as fotos e as configurações dele saem do app.'))) return;

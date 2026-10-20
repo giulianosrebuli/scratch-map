@@ -25,12 +25,14 @@ from flask import (Flask, abort, g, has_request_context, jsonify, redirect, rend
 from PIL import Image, ImageOps
 from pillow_heif import register_heif_opener
 from shapely.geometry import Point, shape
+from werkzeug.exceptions import HTTPException
 
 import boards
 import boundaries
 import i18n
 import installer
 import profiles
+import tokens
 import version
 import flags as state_flags  # o nome "flags" já é uma função aqui
 
@@ -50,6 +52,7 @@ THUMB_PX = 600
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 4 * 1024 ** 3  # o backup (restaurar) é o maior envio
+app.json.ensure_ascii = False  # JSON com acento (é UTF-8), não \u00e1
 
 SCHEMA = """
 -- configurações da instância (por enquanto editadas à mão; ver README)
@@ -92,7 +95,7 @@ CREATE TABLE IF NOT EXISTS visit_dates (
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     PRIMARY KEY (kind, ref_id, month)
 );
-""" + boundaries.SCHEMA + state_flags.SCHEMA
+""" + boundaries.SCHEMA + state_flags.SCHEMA + tokens.SCHEMA
 
 
 def prof():
@@ -283,6 +286,13 @@ PROFILE_FREE = ("/static/", "/profiles") + PWA_PATHS
 
 @app.before_request
 def pick_profile():
+    if request.path.startswith("/api/v1/"):  # integrações: o perfil vem do token
+        auth = request.headers.get("Authorization", "")
+        p = tokens.lookup(auth[7:].strip() if auth.lower().startswith("bearer ") else "")
+        if p is None:
+            abort(401, "token ausente, inválido ou revogado (Authorization: Bearer sm_…)")
+        g.prof = p
+        return None
     p = profiles.get(request.cookies.get(profiles.COOKIE))
     if p is None:
         every = profiles.list_all()
@@ -606,6 +616,29 @@ def new_profile():
         set_setting("setup_pending", "1")
         db().commit()
     return use(redirect("/setup"), p)
+
+
+# ------------------------------------------------------------------ tokens da API (tokens.py)
+# Gerenciados pelo próprio app (cookie do perfil), nas Configurações. Um token
+# não cria nem revoga tokens: estas rotas não existem em /api/v1.
+@app.get("/api/tokens")
+def tokens_list():
+    return jsonify(tokens.listing(db()))
+
+
+@app.post("/api/tokens")
+def tokens_create():
+    name = str((request.get_json(silent=True) or {}).get("name", "")).strip()[:60]
+    if not name:
+        abort(400, tr("dê um nome ao token (ex.: Home Assistant)"))
+    tid, token = tokens.create(db(), prof().id, name)
+    return jsonify(id=tid, name=name, token=token), 201
+
+
+@app.delete("/api/tokens/<int:token_id>")
+def tokens_revoke(token_id):
+    tokens.revoke(db(), token_id)
+    return jsonify(ok=True)
 
 
 @app.delete("/api/profile")
@@ -1801,6 +1834,39 @@ def photo_file(sub, name):
     resp = send_from_directory(prof().photos / sub, name)
     resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
     return resp
+
+
+# ------------------------------------------------------------------ API para integrações (/api/v1)
+# As mesmas rotas das integrações, em /api/v1, com o perfil vindo do token
+# (pick_profile) e erros em JSON. O /api sem versão continua sendo a API do
+# próprio app no navegador (cookie), e pode mudar junto com ele.
+V1_ROUTES = (
+    "/api/visited", "/api/visits", "/api/visits/<kind>/<ref_id>", "/api/visits/batch",
+    "/api/search", "/api/nearby", "/api/landmarks/near",
+    "/api/place/<kind>/<ref_id>", "/api/place/<kind>/<ref_id>/dates", "/api/place/<kind>/<ref_id>/dates/<path:month>",
+    "/api/place/<kind>/<ref_id>/photos", "/api/photos", "/api/stats", "/api/years",
+)
+for _rule in list(app.url_map.iter_rules()):
+    if _rule.rule in V1_ROUTES:
+        app.add_url_rule("/api/v1" + _rule.rule[4:], endpoint=f"v1.{_rule.endpoint}",
+                         view_func=app.view_functions[_rule.endpoint], methods=_rule.methods - {"HEAD", "OPTIONS"})
+missing = set(V1_ROUTES) - {r.rule for r in app.url_map.iter_rules()}
+assert not missing, f"rotas de /api/v1 que não existem: {missing}"
+
+
+@app.get("/api/v1/me")
+def v1_me():
+    """De quem é o token: o perfil e o nome dele."""
+    return jsonify(profile=prof().id, name=settings().get("profile_name") or "")
+
+
+@app.errorhandler(HTTPException)
+def http_error(e):
+    """Em /api/v1, todo erro em JSON ({"error": 404, "message": "…"}); no resto,
+    como sempre."""
+    if request.path.startswith("/api/v1/"):
+        return jsonify(error=e.code, message=e.description), e.code
+    return e
 
 
 profiles.setup()

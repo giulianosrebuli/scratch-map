@@ -9,18 +9,28 @@ info:
     comportamento atual, como base para integrações (Home Assistant, Immich,
     scripts).
 
-    ## Perfis
-    Cada pessoa da casa tem um perfil, com dados próprios. Toda chamada vale
-    para **um perfil**, escolhido pelo cookie `perfil=<id>` (o mesmo que a tela
-    "Quem está usando?" grava). Com um perfil só, ele é usado sem cookie. Com
-    vários e sem cookie, as rotas de `/api/` respondem **409**.
+    ## Integrações: `/api/v1` com token
+    Para integrações (Home Assistant, scripts), use **`/api/v1/...`** com um
+    token: `Authorization: Bearer sm_…`. O token é criado por perfil em
+    Configurações → API para integrações, aparece uma vez só e pode ser
+    revogado; ele diz o perfil (não precisa de cookie) e age como ele.
+    Em `/api/v1` estão as rotas marcadas com a tag **integração** e mais
+    `/api/stats` e `/api/years`, com o mesmo caminho depois do `/api`
+    (`/api/visited` → `/api/v1/visited`), e `/api/v1/me` (de quem é o token).
+    Erros em `/api/v1` vêm em JSON: `{"error": 401, "message": "…"}`.
 
-    Para escolher um perfil fora do navegador, mande o cookie:
-    `curl -b perfil=2 http://servidor:5020/api/visited`.
+        curl -H "Authorization: Bearer sm_1_…" http://servidor:5020/api/v1/visited
+
+    ## Perfis (a API do próprio app)
+    As rotas sem versão (`/api/...`) são as que a interface usa no navegador:
+    o perfil vem do cookie `perfil=<id>` (o mesmo que a tela "Quem está
+    usando?" grava). Com um perfil só, ele é usado sem cookie. Com vários e
+    sem cookie, respondem **409**.
 
     ## Autenticação
-    **Nenhuma.** O app confia em quem alcança a porta (rede de casa ou VPN,
-    como o Tailscale). Não exponha a porta na internet.
+    `/api/v1` exige token. As rotas sem versão, não: o app confia em quem
+    alcança a porta (rede de casa ou VPN, como o Tailscale). Não exponha a
+    porta na internet.
 
     ## Convenções
     - `kind`: `country | state | city | airport` são marcáveis (visitas);
@@ -34,13 +44,13 @@ info:
     - Nomes: países no idioma do perfil (`language`); estados e cidades com o
       nome de lá.
     - Respostas JSON maiores que 2 KB vêm com gzip quando o cliente aceita.
-    - Erros: código HTTP com uma página HTML curta (`<p>mensagem</p>`); a
-      mensagem está traduzida no idioma do perfil.
+    - Erros: em `/api/v1`, JSON; nas rotas sem versão, código HTTP com uma
+      página HTML curta (`<p>mensagem</p>`). A mensagem está traduzida no
+      idioma do perfil.
 
     ## Estabilidade
-    Ainda não há versão estável (`/api/v1`): as rotas podem mudar junto com a
-    interface. As que uma integração deve preferir estão marcadas com a tag
-    **integração**.
+    `/api/v1` é a versão estável para integrações. As rotas sem versão podem
+    mudar junto com a interface.
   license:
     name: MIT
     url: https://github.com/giulianosrebuli/scratch-map/blob/main/LICENSE
@@ -52,9 +62,10 @@ servers:
     description: o próprio servidor do app
 security:
   - perfil: []
+  - token: []
 tags:
   - name: integração
-    description: As mais úteis para integrações (consultar e marcar visitas, fotos).
+    description: As mais úteis para integrações (consultar e marcar visitas, fotos); também em /api/v1, com token.
   - name: visitas
   - name: lugares
   - name: fotos
@@ -680,6 +691,87 @@ paths:
               schema: {$ref: "#/components/schemas/Board"}
         "404": {$ref: "#/components/responses/Error"}
 
+  /api/v1/me:
+    get:
+      tags: [integração]
+      summary: De quem é o token
+      security: [{token: []}]
+      responses:
+        "200":
+          description: O perfil do token.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  profile: {type: string, example: "1"}
+                  name: {type: string}
+        "401":
+          description: Token ausente, inválido ou revogado.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: {type: integer, example: 401}
+                  message: {type: string}
+
+  /api/tokens:
+    get:
+      tags: [perfil]
+      summary: Tokens de integração do perfil
+      description: Os tokens do perfil (cookie), sem o valor (só os 4 últimos caracteres). Não existe em /api/v1.
+      responses:
+        "200":
+          description: Os tokens.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: {type: integer}
+                    name: {type: string}
+                    hint: {type: string, description: Os 4 últimos caracteres.}
+                    created_at: {type: string}
+                    last_used_at: {type: [string, "null"]}
+    post:
+      tags: [perfil]
+      summary: Cria um token de integração
+      description: O token vem só nesta resposta; no servidor fica o hash.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: {type: string, maxLength: 60, example: Home Assistant}
+      responses:
+        "201":
+          description: Criado.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: integer}
+                  name: {type: string}
+                  token: {type: string, example: sm_1_…}
+        "400": {$ref: "#/components/responses/Error"}
+
+  /api/tokens/{id}:
+    delete:
+      tags: [perfil]
+      summary: Revoga um token
+      description: O que usa o token para de funcionar na hora.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: integer}}
+      responses:
+        "200": {$ref: "#/components/responses/Ok"}
+
   /api/stats:
     get:
       tags: [álbum, integração]
@@ -1026,7 +1118,13 @@ components:
       name: perfil
       description: |
         Não é autenticação: só escolhe o perfil (id numérico). Opcional com um
-        perfil só.
+        perfil só. Vale nas rotas sem versão.
+    token:
+      type: http
+      scheme: bearer
+      description: |
+        Token de integração (`sm_<perfil>_<aleatório>`), criado por perfil em
+        Configurações. Obrigatório em `/api/v1`; diz o perfil.
 
   responses:
     Ok:
