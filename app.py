@@ -369,7 +369,7 @@ def boards_index():
     for slug in boards.CONTINENTS:
         b = board("continente", slug)
         out.append({"id": slug, "title": b["title"], "members": [m["id"] for m in b["members"]] + [o["id"] for o in b["off"]],
-                    "x": b["x"], "width": b["width"], "height": b["height"], "d": [m["d"] for m in b["members"]]})
+                    "d": [m["d"] for m in b["members"]]})
     return jsonify(out)
 
 
@@ -380,7 +380,7 @@ def board_api(kind, board_id):
     b = board(kind, board_id)
     if b is None:
         abort(404)
-    return jsonify(b)
+    return jsonify({**b, "canvas": boards.CANVAS})
 
 
 @app.get("/raspar")

@@ -20,13 +20,17 @@ from shapely.ops import polylabel
 from shapely.geometry import MultiPolygon, Polygon
 from shapely.ops import transform
 
-W = 1000          # largura da área do mapa (px do SVG)
-MAX_H = 1100      # altura máxima (países compridos, como o Chile, ficam mais estreitos)
-GUTTER = 190      # margem de cada lado, para os nomes com traço
-PAD = 18
-LABEL_SIZES = (20, 17, 14.5, 12.5)
-CALLOUT_SIZE = 14
-CALLOUT_GAP = 17  # distância mínima entre nomes na margem
+# Todo quadro tem a mesma proporção (paisagem, 3:2) e o mesmo desenho: título
+# no alto à esquerda, a lista embaixo dele e o mapa na metade direita. Tudo em
+# unidades do SVG (1500 × 1000), que o navegador escala por inteiro.
+CANVAS = (1500, 1000)
+LIST = (100, 290, 900)      # lista: x, topo, fim
+MAP_Y = (95, 905)           # o mapa começa depois da lista e vai até MAP_X1
+MAP_X1 = 1410
+GUTTER = 135      # margem para os nomes com traço (só do lado que precisar)
+LABEL_SIZES = (21, 18, 15.5, 13)
+CALLOUT_SIZE = 15
+CALLOUT_GAP = 19  # distância mínima entre nomes na margem
 
 # Continentes (a América em três). bbox fixo [oeste, sul, leste, norte]; os
 # membros vêm do Natural Earth (continente/sub-região). O México fica na do
@@ -87,8 +91,9 @@ def main_bbox(geom, near=3):
     return (bx[0] - m, bx[1] - m, bx[2] + m, bx[3] + m)
 
 
-def fit_text(poly, cx, cy, name, sizes=LABEL_SIZES):
-    """Tamanho e linhas que cabem dentro do polígono, centrados em (cx, cy)."""
+def fit_text(poly, cx, cy, name, taken, sizes=LABEL_SIZES):
+    """Tamanho e linhas que cabem dentro do polígono, centrados em (cx, cy),
+    sem encostar nos nomes já postos (`taken`, retângulos)."""
     words = name.split()
     options = [[name]]
     if len(words) > 1:  # quebra em duas linhas no espaço mais perto do meio
@@ -101,9 +106,29 @@ def fit_text(poly, cx, cy, name, sizes=LABEL_SIZES):
             h = len(lines) * size * 1.15
             r = box(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)
             # como nos pôsteres: pode passar um pouco da borda (Itália, Noruega)
-            if inner.intersection(r).area >= 0.75 * r.area:
+            if inner.intersection(r).area >= 0.75 * r.area and not any(r.intersects(o) for o in taken):
+                taken.append(r.buffer(2))
                 return size, lines
     return None
+
+
+def list_layout(names):
+    """Lista em colunas embaixo do título: a maior letra (até 20) em que tudo
+    cabe em no máximo 5 colunas; não cabendo nem na menor, corta os nomes."""
+    x, top, bottom = LIST
+    longest = max((len(n) for n in names), default=1)
+    for size in (20, 18, 16, 14, 12.5, 11):
+        row_h = size * 1.6
+        rows = int((bottom - top) // row_h)
+        cols = -(-len(names) // rows)
+        col_w = size * 1.5 + longest * size * 0.55 + 22
+        if cols <= 5 and cols * col_w <= 640:
+            return {"size": size, "row_h": row_h, "rows": rows, "col_w": col_w, "cut": None, "width": max(cols * col_w, 520)}
+    size, row_h = 11, 11 * 1.6
+    rows = int((bottom - top) // row_h)
+    col_w = 640 / -(-len(names) // rows)
+    return {"size": size, "row_h": row_h, "rows": rows, "col_w": col_w,
+            "cut": max(4, int((col_w - 22 - size * 1.5) // (size * 0.55))), "width": 640}
 
 
 def place_callouts(items, x, top, bottom):
@@ -143,9 +168,14 @@ def polygonal(g):
     return MultiPolygon([q for p in polys for q in (p.geoms if isinstance(p, MultiPolygon) else [p])]) if polys else Polygon()
 
 
-def build(bbox, members, context):
-    """members: [(id, nome, geom)] raspáveis; context: [geom] em volta (apagados)."""
-    # Recorta depois de projetar: o quadro é um retângulo na projeção (o bbox
+def build(bbox, members, names):
+    """members: [(id, nome, geom)] raspáveis, só eles (sem o resto do continente);
+    names: os nomes da lista (inclusive os fora do quadro). A lista fica com o
+    espaço de que precisa e o mapa com o resto, com margem para os nomes com
+    traço só do lado que precisar."""
+    lst = list_layout(names)
+    MAP = (LIST[0] + lst["width"] + 30, MAP_Y[0], MAP_X1, MAP_Y[1])
+    # Recorta depois de projetar: o recorte é um retângulo na projeção (o bbox
     # em graus vira um trapézio curvo na cônica, e cortar por ele deixava a
     # Rússia em cunha). Antes, um corte folgado em graus só para não projetar
     # o mundo todo.
@@ -160,42 +190,49 @@ def build(bbox, members, context):
         c = polygonal(clip_by_rect(transform(proj, polygonal(clip_by_rect(g, *loose))), x0, y0, x1, y1))
         return None if c.is_empty else c
     projected = [(i, nm, c) for i, nm, g in members if (c := clip(g)) is not None]
-    ctx = [c for g in context if (c := clip(g)) is not None]
-    scale = min(W / (x1 - x0), MAX_H / (y1 - y0))
-    h = (y1 - y0) * scale
-    mw = (x1 - x0) * scale
-    ox = GUTTER
-    to_px = lambda g: transform(lambda x, y, z=None: (ox + (x - x0) * scale, PAD + (y1 - y) * scale), g)
-    width, height = mw + 2 * GUTTER, h + 2 * PAD
+    if not projected:
+        return {"members": [], "list": lst}
+    # enquadra o que foi desenhado (não o bbox inteiro)
+    x0, y0, x1, y1 = MultiPolygon([q for _, _, g in projected for q in getattr(g, "geoms", [g])]).bounds
 
-    out_members, left, right = [], [], []
-    for mid, name, g in projected:
-        g = polygonal(to_px(g).simplify(0.4))  # o resto da simplificação, já em px
-        if g.is_empty:
-            continue
-        parts = list(g.geoms) if hasattr(g, "geoms") else [g]
-        main = max(parts, key=lambda p: p.area)
-        pole = polylabel(main, tolerance=0.5)
-        m = {"id": mid, "name": name, "d": svg_path(g)}
-        fit = fit_text(main, pole.x, pole.y, name)
-        if fit:
-            m["label"] = {"x": round(pole.x, 1), "y": round(pole.y, 1), "size": fit[0], "lines": fit[1]}
-        else:
-            co = {"m": m, "tx": round(pole.x, 1), "ty": round(pole.y, 1)}
-            (left if pole.x < ox + mw / 2 else right).append(co)
-        out_members.append(m)
-    # os nomes de fora ficam logo ao lado do mapa (não na borda do quadro)
-    place_callouts(left, ox - 10, PAD + 6, height - PAD)
-    place_callouts(right, ox + mw + 10, PAD + 6, height - PAD)
-    for side, items in (("left", left), ("right", right)):
-        for co in items:
-            co["m"]["callout"] = {"side": side, "x": co["x"], "y": round(co["y"], 1), "tx": co["tx"], "ty": co["ty"],
-                                  "size": CALLOUT_SIZE}
-    # margem sem nenhum nome fica de fora do desenho (viewBox começa em x)
-    cut_l = 0 if left else GUTTER - PAD
-    cut_r = 0 if right else GUTTER - PAD
-    return {"x": cut_l, "width": round(width - cut_l - cut_r), "height": round(height),
-            "context": [svg_path(to_px(g).simplify(0.6)) for g in ctx], "members": out_members}
+    def attempt(gl, gr):
+        """Encaixa o mapa em MAP menos as margens; devolve (membros, esquerda, direita)."""
+        mx0, my0, mx1, my1 = MAP[0] + gl, MAP[1], MAP[2] - gr, MAP[3]
+        scale = min((mx1 - mx0) / (x1 - x0), (my1 - my0) / (y1 - y0))
+        mw, mh = (x1 - x0) * scale, (y1 - y0) * scale
+        ox, oy = mx1 - mw if gl == 0 and gr == 0 else (mx0 + mx1 - mw) / 2, (my0 + my1 - mh) / 2
+        to_px = lambda g: transform(lambda x, y, z=None: (ox + (x - x0) * scale, oy + (y1 - y) * scale), g)
+        out, left, right, taken = [], [], [], []
+        # os maiores primeiro: pegam o lugar dos nomes antes dos vizinhos pequenos
+        for mid, name, g in sorted(projected, key=lambda m: -m[2].area):
+            g = polygonal(to_px(g).simplify(0.4))  # o resto da simplificação, já em px
+            if g.is_empty:
+                continue
+            parts = list(g.geoms) if hasattr(g, "geoms") else [g]
+            main = max(parts, key=lambda p: p.area)
+            pole = polylabel(main, tolerance=0.5)
+            m = {"id": mid, "name": name, "d": svg_path(g)}
+            fit = fit_text(main, pole.x, pole.y, name, taken)
+            if fit:
+                m["label"] = {"x": round(pole.x, 1), "y": round(pole.y, 1), "size": fit[0], "lines": fit[1]}
+            else:
+                co = {"m": m, "tx": round(pole.x, 1), "ty": round(pole.y, 1)}
+                (left if pole.x < ox + mw / 2 else right).append(co)
+            out.append(m)
+        return out, left, right, (ox, oy, ox + mw, oy + mh)
+
+    # 1ª passada sem margem, para saber de que lado vão nomes com traço; a 2ª
+    # abre a margem só desses lados (o mapa encolhe um pouco)
+    out, left, right, _ = attempt(0, 0)
+    if left or right:
+        out, left, right, (ax0, ay0, ax1, ay1) = attempt(GUTTER if left else 0, GUTTER if right else 0)
+        place_callouts(left, ax0 - 10, MAP[1] + 6, MAP[3])
+        place_callouts(right, ax1 + 10, MAP[1] + 6, MAP[3])
+        for side, items in (("left", left), ("right", right)):
+            for co in items:
+                co["m"]["callout"] = {"side": side, "x": co["x"], "y": round(co["y"], 1), "tx": co["tx"],
+                                      "ty": co["ty"], "size": CALLOUT_SIZE}
+    return {"members": out, "list": lst}
 
 
 @lru_cache(maxsize=64)
@@ -205,7 +242,7 @@ def continent(boards_db, geo_db, slug, lang):
     cont = {r["country_id"]: (r["continent"], r["subregion"]) for r in con.execute("SELECT * FROM continents")}
     names = dict(_db(geo_db).execute(f"SELECT id, {'COALESCE(name_en, name)' if lang == 'en' else 'name'} FROM countries"))
     frame = box(*spec["bbox"])
-    members, context, off = [], [], []
+    members, off = [], []
     for r in con.execute("SELECT id, geom FROM shapes WHERE kind = 'country'"):
         cid = r["id"]
         c, s = cont.get(cid, (None, None))
@@ -215,9 +252,7 @@ def continent(boards_db, geo_db, slug, lang):
             is_member = frame.contains(g.representative_point())
         if is_member:
             (members if g.intersects(frame) else off).append((cid, names.get(cid, cid), g))
-        elif g.intersects(frame):
-            context.append(g)
-    out = build(spec["bbox"], members, context)
+    out = build(spec["bbox"], members, [n for _, n, _ in members + off])
     out.update(kind="continent", id=slug, title=spec[lang if lang == "en" else "pt"], member_kind="country",
                off=[{"id": i, "name": n} for i, n, _ in off])
     return out
@@ -246,14 +281,12 @@ def country(boards_db, geo_db, cid, lang):
     for r in con.execute("SELECT id, geom FROM shapes WHERE kind = 'state' AND country_id = ?", (cid,)):
         g = from_wkb(r["geom"])
         (members if g.intersects(frame) else off).append((r["id"], names.get(r["id"], r["id"]), g))
-    context = [g for r in con.execute("SELECT id, geom FROM shapes WHERE kind = 'country' AND id != ?", (cid,))
-               if (g := from_wkb(r["geom"])).intersects(frame)]
     title = geo.execute(f"SELECT {'COALESCE(name_en, name)' if lang == 'en' else 'name'} FROM countries WHERE id = ?",
                         (cid,)).fetchone()
     title = title[0] if title else cid
     if not members:  # país sem estados: ele mesmo é a única porção
         members = [(cid, title, shape_c)]
-    out = build(bbox, members, context)
+    out = build(bbox, members, [n for _, n, _ in members + off])
     out.update(kind="country", id=cid, title=title, member_kind="state" if names else "country",
                off=[{"id": i, "name": n} for i, n, _ in off])
     return out

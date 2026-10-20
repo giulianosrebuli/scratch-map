@@ -1,11 +1,16 @@
-/* scratch map — quadros de raspar (boards.py faz o desenho e decide onde vai
-   cada nome; aqui só se pinta e se raspa). /quadros: escolher o continente;
-   /quadros/continente/<slug> e /quadros/pais/<id>: o quadro, com moldura,
-   título, o mapa e a lista do que tem dentro (também raspável). */
+/* scratch map — quadros de raspar (boards.py faz o mapa e decide onde vai
+   cada nome; aqui se monta o quadro, se pinta e se raspa). /quadros: escolher
+   o continente; /quadros/continente/<slug> e /quadros/pais/<id>: o quadro.
+
+   Todo quadro é um SVG só, sempre 3:2 (1500 × 1000), deitado: moldura, título
+   no alto à esquerda, a lista (também raspável) embaixo dele e o mapa à
+   direita. Tudo escala junto: nada de zoom mexendo nos nomes. */
 (() => {
   const { $, esc, api, json, el, t } = window.SM;
   const root = $('#boards');
   const NS = 'http://www.w3.org/2000/svg';
+  const [CW, CH] = [1500, 1000];
+  const LIST = { x: 100, y: 290, bottom: 900 };  // área da lista (boards.LIST)
   const reduced = () => window.PREFS?.skip_animations || matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   // cor de cada porção raspada: fixa por id (o mesmo país sempre com a mesma cor)
@@ -28,21 +33,41 @@
     toastTimer = setTimeout(() => { box.hidden = true; }, 4000);
   }
 
-  // película: dourado contínuo no quadro inteiro (um gradiente só, como no
-  // pôster) e um grão por cima
-  function defs(w, h) {
-    return `<defs>
-      <linearGradient id="gold" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="${w}" y2="${h}">
-        <stop offset="0" stop-color="#9c7a24"/><stop offset=".22" stop-color="#e8c766"/><stop offset=".4" stop-color="#b8922e"/>
-        <stop offset=".58" stop-color="#f6e27a"/><stop offset=".78" stop-color="#a8822a"/><stop offset="1" stop-color="#e2c063"/>
-      </linearGradient>
-      <filter id="grain" x="0" y="0" width="100%" height="100%">
-        <feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="3"/>
-        <feColorMatrix values="0 0 0 0 .3  0 0 0 0 .22  0 0 0 0 .05  0 0 0 .35 0"/>
-        <feComposite in2="SourceGraphic" operator="in"/>
-        <feBlend in="SourceGraphic" mode="multiply"/>
-      </filter>
-    </defs>`;
+  // película: dourado contínuo no mapa inteiro (um gradiente só, como no
+  // pôster) com grão; moldura: madeira escura, filete dourado e cantoneiras
+  const DEFS = `<defs>
+    <linearGradient id="gold" gradientUnits="userSpaceOnUse" x1="700" y1="80" x2="1420" y2="920">
+      <stop offset="0" stop-color="#9c7a24"/><stop offset=".22" stop-color="#e8c766"/><stop offset=".4" stop-color="#b8922e"/>
+      <stop offset=".58" stop-color="#f6e27a"/><stop offset=".78" stop-color="#a8822a"/><stop offset="1" stop-color="#e2c063"/>
+    </linearGradient>
+    <linearGradient id="gold-line" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8a6a1f"/><stop offset=".35" stop-color="#f3dc8a"/><stop offset=".6" stop-color="#b08a2e"/><stop offset="1" stop-color="#e8c766"/>
+    </linearGradient>
+    <linearGradient id="wood" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a2a1a"/><stop offset=".5" stop-color="#21170e"/><stop offset="1" stop-color="#3a2a1a"/>
+    </linearGradient>
+    <radialGradient id="mat" cx=".5" cy=".45" r=".75">
+      <stop offset="0" stop-color="#1b2029"/><stop offset="1" stop-color="#0e1116"/>
+    </radialGradient>
+    <filter id="grain" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="3"/>
+      <feColorMatrix values="0 0 0 0 .3  0 0 0 0 .22  0 0 0 0 .05  0 0 0 .35 0"/>
+      <feComposite in2="SourceGraphic" operator="in"/>
+      <feBlend in="SourceGraphic" mode="multiply"/>
+    </filter>
+    <filter id="lift"><feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#000" flood-opacity=".55"/></filter>
+  </defs>`;
+
+  function frameSVG() {
+    const corner = (x, y, sx, sy) => `<path transform="translate(${x} ${y}) scale(${sx} ${sy})"
+      d="M0 0h46v4H8v38H4V0zm12 12h18v3H15v15h-3zM0 0l22 22" fill="url(#gold-line)" stroke="url(#gold-line)" stroke-width="1.2"/>`;
+    return `<rect width="${CW}" height="${CH}" fill="url(#wood)"/>
+      <rect x="10" y="10" width="${CW - 20}" height="${CH - 20}" fill="none" stroke="url(#gold-line)" stroke-width="7"/>
+      <rect x="22" y="22" width="${CW - 44}" height="${CH - 44}" fill="none" stroke="#120c06" stroke-width="5"/>
+      <rect x="30" y="30" width="${CW - 60}" height="${CH - 60}" fill="none" stroke="url(#gold-line)" stroke-width="2"/>
+      <rect x="40" y="40" width="${CW - 80}" height="${CH - 80}" fill="url(#mat)"/>
+      <rect x="56" y="56" width="${CW - 112}" height="${CH - 112}" fill="none" stroke="#b9a774" stroke-opacity=".55" stroke-width="1.2"/>
+      ${corner(62, 62, 1, 1)}${corner(CW - 62, 62, -1, 1)}${corner(62, CH - 62, 1, -1)}${corner(CW - 62, CH - 62, -1, -1)}`;
   }
 
   // ------------------------------------------------------------------ índice
@@ -53,11 +78,11 @@
     const grid = el('<div class="board-cards"></div>');
     for (const b of boards) {
       const n = b.members.filter((id) => isOn('country', id)).length;
-      const a = el(`<a class="board-card" href="/quadros/continente/${b.id}">
-        <svg viewBox="${b.x} 0 ${b.width} ${b.height}" aria-hidden="true">${defs(b.width, b.height)}
-          ${b.d.map((d, i) => `<path d="${d}" fill="${isOn('country', b.members[i]) ? colorOf(b.members[i]) : 'url(#gold)'}"/>`).join('')}</svg>
-        <b>${esc(b.title)}</b><small>${t('{n} de {total}', { n, total: b.members.length })}</small></a>`);
-      grid.append(a);
+      grid.append(el(`<a class="board-card" href="/quadros/continente/${b.id}">
+        <svg viewBox="0 0 ${CW} ${CH}" aria-hidden="true">${DEFS}${frameSVG()}
+          ${b.d.map((d, i) => `<path d="${d}" fill="${isOn('country', b.members[i]) ? colorOf(b.members[i]) : 'url(#gold)'}"/>`).join('')}
+          <text x="100" y="175" class="title">${esc(b.title)}</text></svg>
+        <small>${t('{n} de {total}', { n, total: b.members.length })}</small></a>`));
     }
     root.append(grid);
     const mine = [...(visited.country?.values() ?? [])];
@@ -73,65 +98,70 @@
   async function boardView(kind, id) {
     const b = await api(`/api/boards/${kind}/${encodeURIComponent(id)}`);
     const mk = b.member_kind;
-    const all = [...b.members, ...b.off];
+    const all = [...b.members, ...b.off.map((m) => ({ ...m, off: true }))].sort((a, z) => a.name.localeCompare(z.name));
     const crumbs = [`<a href="/quadros">${t('Quadros')}</a>`];
     if (b.kind === 'country' && b.parent) crumbs.push(`<a href="/quadros/continente/${b.parent.id}">${esc(b.parent.title)}</a>`);
     crumbs.push(`<b>${esc(b.title)}</b>`);
     root.append(el(`<nav class="album-crumbs">${crumbs.join(' › ')}</nav>`));
 
-    const frame = el(`<div class="board-frame"><div class="board-mat">
-      <h1 class="board-name">${esc(b.title)}</h1><p class="board-sub"></p></div></div>`);
-    const mat = $('.board-mat', frame);
+    const L = b.list;  // colunas e tamanho da letra: boards.list_layout
+    L.cut ??= Infinity;
+    const listSVG = all.map((m, i) => {
+      const col = Math.floor(i / L.rows), row = i % L.rows;
+      const x = LIST.x + col * L.col_w, y = LIST.y + row * L.row_h + L.size * 0.8;
+      const name = m.name.length > L.cut ? `${m.name.slice(0, L.cut - 1)}…` : m.name;
+      return `<g class="item" data-id="${esc(m.id)}"><title>${esc(m.name)}</title>
+        <rect class="swatch" x="${x}" y="${y - L.size * 0.62}" width="${L.size * 1.15}" height="${L.size * 0.62}" rx="2"/>
+        <text x="${x + L.size * 1.5}" y="${y}" font-size="${L.size}">${esc(name)}${m.off ? ' *' : ''}</text></g>`;
+    }).join('');
+
     const svg = document.createElementNS(NS, 'svg');
-    svg.setAttribute('viewBox', `${b.x} 0 ${b.width} ${b.height}`);
+    svg.setAttribute('viewBox', `0 0 ${CW} ${CH}`);
     svg.classList.add('board-svg');
-    svg.innerHTML = `${defs(b.width, b.height)}
-      <g class="ctx">${b.context.map((d) => `<path d="${d}"/>`).join('')}</g>
-      <g class="members">${b.members.map((m) => `<g class="member" data-id="${esc(m.id)}">
+    svg.innerHTML = `${DEFS}${frameSVG()}
+      <text x="100" y="178" class="title">${esc(b.title)}</text>
+      <text x="103" y="226" class="subtitle"></text>
+      <line x1="100" y1="250" x2="${100 + Math.max(L.width - 30, 420)}" y2="250" class="rule"/>
+      <g class="list">${listSVG}</g>
+      ${b.off.length ? `<text x="${LIST.x}" y="${LIST.bottom + 22}" class="note">* ${t('fora do quadro (longe do território principal)')}</text>` : ''}
+      <g class="members" filter="url(#lift)">${b.members.map((m) => `<g class="member" data-id="${esc(m.id)}">
         <path class="paint" d="${m.d}" fill="${colorOf(m.id)}"/><path class="foil" d="${m.d}"/></g>`).join('')}</g>
       <g class="callouts">${b.members.filter((m) => m.callout).map((m) => {
         const c = m.callout, left = c.side === 'left';
         return `<g class="callout" data-id="${esc(m.id)}"><line x1="${c.tx}" y1="${c.ty}" x2="${c.x + (left ? 4 : -4)}" y2="${c.y}"/>
-          <circle cx="${c.tx}" cy="${c.ty}" r="1.8"/>
+          <circle cx="${c.tx}" cy="${c.ty}" r="2.2"/>
           <text x="${c.x}" y="${c.y}" font-size="${c.size}" text-anchor="${left ? 'end' : 'start'}" dominant-baseline="middle">${esc(m.name)}</text></g>`;
       }).join('')}</g>
       <g class="labels">${b.members.filter((m) => m.label).map((m) => {
         const l = m.label, lh = l.size * 1.15, y0 = l.y - ((l.lines.length - 1) * lh) / 2;
         return `<text class="label" data-id="${esc(m.id)}" x="${l.x}" font-size="${l.size}" text-anchor="middle">${l.lines.map((s, i) => `<tspan x="${l.x}" y="${y0 + i * lh}" dominant-baseline="middle">${esc(s)}</tspan>`).join('')}</text>`;
       }).join('')}</g>`;
-    mat.append(svg);
-    const list = el('<ul class="board-list"></ul>');
-    for (const m of [...all].sort((a, b2) => a.name.localeCompare(b2.name))) {
-      list.append(el(`<li><button class="scratch-chip" data-id="${esc(m.id)}"><i></i><span>${esc(m.name)}</span>${b.off.includes(m) ? `<small>${t('fora do quadro')}</small>` : ''}</button></li>`));
-    }
-    mat.append(list);
-    root.append(frame);
+    root.append(el('<div class="board-wrap"></div>'));
+    $('.board-wrap', root).append(svg);
 
     const paint = () => {
-      for (const g of svg.querySelectorAll('.member')) g.classList.toggle('on', isOn(mk, g.dataset.id));
-      for (const x of svg.querySelectorAll('.label, .callout')) x.classList.toggle('on', isOn(mk, x.dataset.id));
-      for (const c of list.querySelectorAll('.scratch-chip')) {
-        const on = isOn(mk, c.dataset.id);
-        c.classList.toggle('on', on);
-        $('i', c).style.background = on ? colorOf(c.dataset.id) : '';
+      for (const x of svg.querySelectorAll('[data-id]')) x.classList.toggle('on', isOn(mk, x.dataset.id));
+      for (const r of svg.querySelectorAll('.item .swatch')) {
+        const on = isOn(mk, r.parentNode.dataset.id);
+        r.setAttribute('fill', on ? colorOf(r.parentNode.dataset.id) : 'url(#gold-line)');
       }
       const n = all.filter((m) => isOn(mk, m.id)).length;
-      $('.board-sub', mat).textContent = t('{n} de {total} raspados', { n, total: all.length });
+      $('.subtitle', svg).textContent = t('{n} de {total} raspados', { n, total: all.length });
     };
     paint();
 
-    const pick = (e) => e.target.closest('[data-id]')?.dataset.id;
-    svg.addEventListener('click', (e) => { const id = pick(e); if (id) actions(all.find((m) => m.id === id)); });
-    list.addEventListener('click', (e) => { const id = pick(e); if (id) actions(all.find((m) => m.id === id)); });
+    svg.addEventListener('click', (e) => {
+      const id = e.target.closest('[data-id]')?.dataset.id;
+      if (id) actions(all.find((m) => m.id === id));
+    });
 
     // tocou numa porção: raspar / desmarcar / abrir o quadro do país
     function actions(m) {
       $('.board-actions')?.remove();
       const item = visited[mk]?.get(String(m.id));
-      const on = !!item;
       const box = el(`<div class="board-actions glass"><b>${esc(m.name)}</b><div class="row"></div></div>`);
       const row = $('.row', box);
-      if (!on) row.append(button(t('Raspar'), 'flag', async () => { await scratch(m); box.remove(); }));
+      if (!item) row.append(button(t('Raspar'), 'flag', async () => { await scratch(m); box.remove(); }));
       else if (item.explicit) row.append(button(t('Desmarcar'), 'secondary', async () => { await unscratch(m, item); box.remove(); }));
       else row.append(el(`<small>${mk === 'country' ? t('Marcado pelos estados ou cidades.') : t('Marcado pelas cidades.')}</small>`));
       if (mk === 'country' && b.kind === 'continent') row.append(link(t('Abrir quadro'), `/quadros/pais/${encodeURIComponent(m.id)}`));
