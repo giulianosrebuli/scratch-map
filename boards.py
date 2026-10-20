@@ -27,8 +27,8 @@ from shapely.ops import transform
 # unidades do SVG (1500 × 1000), que o navegador escala por inteiro.
 CANVAS = (1500, 1000)
 LIST = (100, 290, 900)      # lista: x, topo, fim
-MAP_Y = (95, 905)           # o mapa começa depois da lista e vai até MAP_X1
-MAP_X1 = 1410
+MAP_Y = (80, 920)           # o mapa começa depois da lista e vai até MAP_X1
+MAP_X1 = 1425
 GUTTER = 80       # margem para as siglas com traço (só do lado que precisar)
 LABEL_SIZES = (24, 21, 18, 15.5, 13, 11.5)
 CALLOUT_SIZE = 16
@@ -138,23 +138,39 @@ def fit_text(poly, points, text, taken, sizes=LABEL_SIZES):
     return None
 
 
-def list_layout(names):
-    """Lista em colunas embaixo do título: a maior letra (até 20) em que tudo
-    cabe em no máximo 5 colunas; não cabendo nem na menor, corta os nomes."""
+TITLE_SIZE = 76    # letra do título (o navegador reduz se não couber em TITLE_MAX)
+TITLE_MAX = 600
+
+
+def title_width(title):
+    return min(len(title) * TITLE_SIZE * 0.8, TITLE_MAX)
+
+
+def list_layout(names, title):
+    """Lista em colunas embaixo do título, o mais estreita possível (o mapa
+    fica com o resto): entre as letras de 16 a 13, a de menos colunas (empate:
+    a letra maior), em no máximo 5 colunas; não cabendo, letra 11 e
+    nomes cortados. Nunca mais estreita que o título."""
     x, top, bottom = LIST
     longest = max((len(n) for n in names), default=1) + 4  # + a sigla antes do nome
-    for size in (20, 18, 16, 14, 12.5, 11):
+    best = None
+    for size in (16, 15, 14, 13):
         row_h = size * 1.6
         rows = int((bottom - top) // row_h)
         cols = -(-len(names) // rows)
         col_w = size * 1.5 + longest * size * CAPS + 22
-        if cols <= 5 and cols * col_w <= 640:
-            return {"size": size, "row_h": row_h, "rows": rows, "col_w": col_w, "cut": None, "width": max(cols * col_w, 520)}
-    size, row_h = 11, 11 * 1.6
-    rows = int((bottom - top) // row_h)
-    col_w = 640 / -(-len(names) // rows)
-    return {"size": size, "row_h": row_h, "rows": rows, "col_w": col_w,
-            "cut": max(4, int((col_w - 22 - size * 1.5) // (size * CAPS))), "width": 640}
+        # menos colunas primeiro (é o que estreita); empate: a letra maior
+        if cols <= 5 and cols * col_w <= 640 and (best is None or cols < best["cols"]):
+            best = {"size": size, "row_h": row_h, "rows": rows, "cols": cols, "col_w": col_w, "cut": None,
+                    "width": cols * col_w}
+    if best is None:
+        size, row_h = 11, 11 * 1.6
+        rows = int((bottom - top) // row_h)
+        col_w = 640 / -(-len(names) // rows)
+        best = {"size": size, "row_h": row_h, "rows": rows, "col_w": col_w, "width": 640,
+                "cut": max(4, int((col_w - 22 - size * 1.5) // (size * CAPS)))}
+    best["width"] = max(best["width"], title_width(title))
+    return best
 
 
 def trace(co, side):
@@ -219,12 +235,12 @@ def polygonal(g):
     return MultiPolygon([q for p in polys for q in (p.geoms if isinstance(p, MultiPolygon) else [p])]) if polys else Polygon()
 
 
-def build(bbox, members, names):
+def build(bbox, members, names, title):
     """members: [(id, nome, geom)] raspáveis, só eles (sem o resto do continente);
     names: os nomes da lista (inclusive os fora do quadro). A lista fica com o
     espaço de que precisa e o mapa com o resto, com margem para os nomes com
     traço só do lado que precisar."""
-    lst = list_layout(names)
+    lst = list_layout(names, title)
     MAP = (LIST[0] + lst["width"] + 30, MAP_Y[0], MAP_X1, MAP_Y[1])
     # Recorta depois de projetar: o recorte é um retângulo na projeção (o bbox
     # em graus vira um trapézio curvo na cônica, e cortar por ele deixava a
@@ -303,7 +319,8 @@ def continent(boards_db, geo_db, slug, lang):
             is_member = frame.contains(g.representative_point())
         if is_member:
             (members if g.intersects(frame) else off).append((cid, names.get(cid, cid), g))
-    out = build(spec["bbox"], members, [n for _, n, _ in members + off])
+    title = spec[lang if lang == "en" else "pt"]
+    out = build(spec["bbox"], members, [n for _, n, _ in members + off], title)
     out.update(kind="continent", id=slug, title=spec[lang if lang == "en" else "pt"], member_kind="country",
                off=[{"id": i, "name": n, "abbr": abbr(i, n)} for i, n, _ in off])
     return out
@@ -337,7 +354,7 @@ def country(boards_db, geo_db, cid, lang):
     title = title[0] if title else cid
     if not members:  # país sem estados: ele mesmo é a única porção
         members = [(cid, title, shape_c)]
-    out = build(bbox, members, [n for _, n, _ in members + off])
+    out = build(bbox, members, [n for _, n, _ in members + off], title)
     out.update(kind="country", id=cid, title=title, member_kind="state" if names else "country",
                off=[{"id": i, "name": n, "abbr": abbr(i, n)} for i, n, _ in off])
     return out

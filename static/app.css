@@ -937,7 +937,7 @@ body.no-intro #setup-map, body.no-intro .setup, body.no-intro .setup-card { tran
 .board-wrap { width: 100%; }
 .board-svg { display: block; width: 100%; height: auto; border-radius: 3px; box-shadow: 0 14px 40px rgba(0, 0, 0, .6); }
 .board-svg .title, .board-card .title {
-  font: 600 76px Georgia, "Times New Roman", serif; letter-spacing: .14em; text-transform: uppercase; fill: url(#gold-line);
+  font-family: Georgia, "Times New Roman", serif; font-weight: 600; font-size: 76px; letter-spacing: .14em; text-transform: uppercase; fill: url(#gold-line);
 }
 .board-svg .subtitle { font: 400 24px system-ui, sans-serif; letter-spacing: .08em; fill: #b9a774; }
 .board-svg .rule { stroke: url(#gold-line); stroke-width: 1.5; opacity: .7; }
@@ -946,10 +946,12 @@ body.no-intro #setup-map, body.no-intro .setup, body.no-intro .setup-card { tran
 .board-svg .member .foil .base { fill: url(#gold); filter: url(#grain); }
 .board-svg .member .foil .tex { fill: url(#paper); stroke: none; pointer-events: none; mix-blend-mode: overlay; }
 .board-svg .member.on .foil { display: none; }
-.board-svg .member.on .paint { stroke: rgba(255, 255, 255, .75); }
+.board-svg .member .paint { fill: url(#silver); }
+.board-svg .member .ptex { fill: url(#paper); stroke: none; pointer-events: none; mix-blend-mode: overlay; }
+.board-svg .member.on .paint { stroke: #6f737a; }
 .board-svg text { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; letter-spacing: .03em; cursor: pointer; }
 .board-svg .label { font-weight: 650; fill: #2e2208; paint-order: stroke; stroke: rgba(255, 244, 210, .5); stroke-width: 2.5px; stroke-linejoin: round; }
-.board-svg .label.on { fill: #fff; stroke: rgba(0, 0, 0, .45); }
+.board-svg .label.on { fill: #33363c; stroke: rgba(255, 255, 255, .55); }
 .board-svg .callout polyline { fill: none; stroke: #b9a774; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
 .board-svg .callout circle { fill: #e8c766; }
 .board-svg .callout text { fill: #cbbd96; }

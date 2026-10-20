@@ -15,9 +15,6 @@
   const up = (s) => s.toLocaleUpperCase(document.documentElement.lang || 'pt-BR');
   const reduced = () => window.PREFS?.skip_animations || matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // cor de cada porção raspada: fixa por id (o mesmo país sempre com a mesma cor)
-  const PALETTE = ['#e4572e', '#f3a712', '#5b8e7d', '#669bbc', '#a8c686', '#db2763', '#17bebb', '#9b5de5', '#ef8354', '#4f9d69', '#f15bb5', '#00a6fb'];
-  const colorOf = (id) => PALETTE[[...String(id)].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7) % PALETTE.length];
 
   let visited = {};   // kind → Map(id → item de /api/visited)
   async function loadVisited() {
@@ -44,6 +41,14 @@
     </linearGradient>
     <linearGradient id="gold-line" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#8a6a1f"/><stop offset=".35" stop-color="#f3dc8a"/><stop offset=".6" stop-color="#b08a2e"/><stop offset="1" stop-color="#e8c766"/>
+    </linearGradient>
+    <!-- raspado: folha prateada clara por baixo do ouro (mesma textura) -->
+    <linearGradient id="silver" gradientUnits="userSpaceOnUse" x1="700" y1="80" x2="1420" y2="920">
+      <stop offset="0" stop-color="#b9bcc1"/><stop offset=".3" stop-color="#e4e6e9"/><stop offset=".55" stop-color="#c7cacf"/>
+      <stop offset=".8" stop-color="#eceef0"/><stop offset="1" stop-color="#c3c6cb"/>
+    </linearGradient>
+    <linearGradient id="silver-line" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#9da1a7"/><stop offset=".45" stop-color="#eef0f2"/><stop offset="1" stop-color="#b5b9be"/>
     </linearGradient>
     <linearGradient id="wood" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#3a2a1a"/><stop offset=".5" stop-color="#21170e"/><stop offset="1" stop-color="#3a2a1a"/>
@@ -87,7 +92,7 @@
       const n = b.members.filter((id) => isOn('country', id)).length;
       grid.append(el(`<a class="board-card" href="/quadros/continente/${b.id}">
         <svg viewBox="0 0 ${CW} ${CH}" aria-hidden="true">${DEFS}${frameSVG()}
-          ${b.d.map((d, i) => `<path d="${d}" fill="${isOn('country', b.members[i]) ? colorOf(b.members[i]) : 'url(#gold)'}"/>`).join('')}
+          ${b.d.map((d, i) => `<path d="${d}" fill="${isOn('country', b.members[i]) ? 'url(#silver)' : 'url(#gold)'}"/>`).join('')}
           <text x="100" y="175" class="title">${esc(b.title)}</text></svg>
         <small>${t('{n} de {total}', { n, total: b.members.length })}</small></a>`));
     }
@@ -127,13 +132,13 @@
     svg.setAttribute('viewBox', `0 0 ${CW} ${CH}`);
     svg.classList.add('board-svg');
     svg.innerHTML = `${DEFS}${frameSVG()}
-      <text x="100" y="178" class="title">${esc(b.title)}</text>
+      <text x="100" y="178" class="title" style="font-size:${Math.min(76, 600 / (b.title.length * 0.8))}px">${esc(b.title)}</text>
       <text x="103" y="226" class="subtitle"></text>
       <line x1="100" y1="250" x2="${100 + Math.max(L.width - 30, 420)}" y2="250" class="rule"/>
       <g class="list">${listSVG}</g>
       ${b.off.length ? `<text x="${LIST.x}" y="${LIST.bottom + 22}" class="note">* ${t('fora do quadro (longe do território principal)')}</text>` : ''}
       <g class="members" filter="url(#lift)">${b.members.map((m) => `<g class="member" data-id="${esc(m.id)}">
-        <path class="paint" d="${m.d}" fill="${colorOf(m.id)}"/>
+        <path class="paint" d="${m.d}"/><path class="ptex" d="${m.d}"/>
         <g class="foil"><path class="base" d="${m.d}"/><path class="tex" d="${m.d}"/></g></g>`).join('')}</g>
       <g class="callouts">${b.members.filter((m) => m.callout).map((m) => {
         const c = m.callout, left = c.side === 'left';
@@ -152,7 +157,7 @@
       for (const x of svg.querySelectorAll('[data-id]')) x.classList.toggle('on', isOn(mk, x.dataset.id));
       for (const r of svg.querySelectorAll('.item .swatch')) {
         const on = isOn(mk, r.parentNode.dataset.id);
-        r.setAttribute('fill', on ? colorOf(r.parentNode.dataset.id) : 'url(#gold-line)');
+        r.setAttribute('fill', on ? 'url(#silver-line)' : 'url(#gold-line)');
       }
       const n = all.filter((m) => isOn(mk, m.id)).length;
       $('.subtitle', svg).textContent = t('{n} de {total} raspados', { n, total: all.length });
