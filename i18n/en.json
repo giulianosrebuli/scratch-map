@@ -321,5 +321,20 @@
  "fora do quadro (longe do território principal)": "off the board (far from the main territory)",
  "Abrir quadro": "Open board",
  "Não deu para exportar: {erro}": "Could not export: {erro}",
- "Os quadros precisam dos contornos simplificados: rode scripts/build_boards.py.": "Boards need the simplified outlines: run scripts/build_boards.py."
+ "Os quadros precisam dos contornos simplificados: rode scripts/build_boards.py.": "Boards need the simplified outlines: run scripts/build_boards.py.",
+ "API para integrações": "API for integrations",
+ "Para o Home Assistant, scripts e outros apps usarem este perfil pela API (/api/v1). Cada token age como este perfil: pode marcar, desmarcar e enviar fotos. Crie um por integração, para poder revogar só aquele.": "For Home Assistant, scripts and other apps to use this profile through the API (/api/v1). Each token acts as this profile: it can mark, unmark and upload photos. Create one per integration, so you can revoke just that one.",
+ "Documentação da API": "API documentation",
+ "Nome (ex.: Home Assistant)": "Name (e.g. Home Assistant)",
+ "Criar token": "Create token",
+ "Copie agora: o token não aparece de novo.": "Copy it now: the token won't be shown again.",
+ "Copiar": "Copy",
+ "Nenhum token ainda.": "No tokens yet.",
+ "Criado em {quando}": "Created {quando}",
+ "último uso: {quando}": "last used {quando}",
+ "nunca usado": "never used",
+ "Revogar": "Revoke",
+ "Revogar \"{nome}\"? O que usa este token para de funcionar na hora.": "Revoke \"{nome}\"? Whatever uses this token stops working right away.",
+ "Copiado": "Copied",
+ "dê um nome ao token (ex.: Home Assistant)": "give the token a name (e.g. Home Assistant)"
 }

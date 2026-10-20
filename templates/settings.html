@@ -186,6 +186,24 @@
         {% endif %}
       </section>
 
+      <h2 class="config-title">{{ _('API para integrações') }}</h2>
+
+      {# tokens deste perfil (tokens.py): quem tem um age como este perfil em /api/v1 #}
+      <section class="config-card" id="api-tokens">
+        <p class="hint">{{ _('Para o Home Assistant, scripts e outros apps usarem este perfil pela API (/api/v1). Cada token age como este perfil: pode marcar, desmarcar e enviar fotos. Crie um por integração, para poder revogar só aquele.') }}
+          <a href="/api/docs" target="_blank">{{ _('Documentação da API') }}</a></p>
+        <ul class="token-list" id="token-list"></ul>
+        <form class="token-new" id="token-new">
+          <input type="text" name="name" maxlength="60" placeholder="{{ _('Nome (ex.: Home Assistant)') }}" required>
+          <button class="btn secondary small">{{ _('Criar token') }}</button>
+        </form>
+        <div class="token-created" id="token-created" hidden>
+          <b>{{ _('Copie agora: o token não aparece de novo.') }}</b>
+          <code id="token-value"></code>
+          <button class="btn small" id="token-copy" type="button">{{ _('Copiar') }}</button>
+        </div>
+      </section>
+
       <h2 class="config-title">{{ _('Backup do servidor') }}</h2>
 
       <section class="config-card" id="backup">
