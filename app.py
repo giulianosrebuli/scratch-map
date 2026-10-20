@@ -357,6 +357,12 @@ def board(kind, board_id):
         b = boards.country(str(BOARDS_DB), str(GEO_DB), board_id, lg)
         slug = boards.continent_of(str(BOARDS_DB), board_id)
         return b and {**b, "parent": slug and {"id": slug, "title": boards.CONTINENTS[slug][lg]}}
+    if kind == "state":  # só na instalação completa (contornos de cidade do Overture)
+        b = boards.state(str(BOARDS_DB), str(GEO_DB), board_id, lg)
+        if b and b.get("country"):
+            slug = boards.continent_of(str(BOARDS_DB), b["country"]["id"])
+            b = {**b, "parent": slug and {"id": slug, "title": boards.CONTINENTS[slug][lg]}}
+        return b
     return None
 
 

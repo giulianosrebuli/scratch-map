@@ -110,33 +110,47 @@
     const mk = b.member_kind;
     const all = [...b.members, ...b.off.map((m) => ({ ...m, off: true }))].sort((a, z) => a.name.localeCompare(z.name));
     const crumbs = [`<a href="/boards">${t('Quadros')}</a>`];
-    if (b.kind === 'country' && b.parent) crumbs.push(`<a href="/boards/continent/${b.parent.id}">${esc(b.parent.title)}</a>`);
+    if (b.parent) crumbs.push(`<a href="/boards/continent/${b.parent.id}">${esc(b.parent.title)}</a>`);
+    if (b.kind === 'state' && b.country) crumbs.push(`<a href="/boards/country/${encodeURIComponent(b.country.id)}">${esc(b.country.title)}</a>`);
     crumbs.push(`<b>${esc(b.title)}</b>`);
     root.append(el(`<div class="board-top"><nav class="album-crumbs">${crumbs.join(' › ')}</nav>
       <button class="btn secondary small board-export">${t('Exportar imagem')}</button></div>`));
 
-    const L = b.list;  // colunas e tamanho da letra: boards.list_layout
+    // Lista: no quadro de estado, só as cidades visitadas (são centenas), na
+    // área que o servidor reservou; nos outros, todos, como boards.list_layout
+    // decidiu (colunas e tamanho da letra).
+    const cityBoard = mk === 'city';
+    const items = cityBoard ? all.filter((m) => isOn(mk, m.id)) : all;
+    const L = b.list;
+    if (cityBoard) {
+      const size = 13, row_h = size * 1.6, rows = Math.max(1, Math.floor((L.bottom - L.top) / row_h));
+      const cols = Math.max(1, Math.ceil(items.length / rows)), col_w = L.width / cols;
+      Object.assign(L, { size, row_h, rows, col_w, cut: Math.max(4, Math.floor((col_w - 22 - size * 1.5) / (size * 0.68))) });
+    }
     L.cut ??= Infinity;
-    const listSVG = all.map((m, i) => {
+    const nameX = cityBoard ? 1.5 : 4.2;  // cidade não tem sigla na lista
+    const listSVG = items.map((m, i) => {
       const col = Math.floor(i / L.rows), row = i % L.rows;
       const x = L.x + col * L.col_w, y = L.top + row * L.row_h + L.size * 0.8;
       const name = up(m.name.length > L.cut ? `${m.name.slice(0, L.cut - 1)}…` : m.name);
       return `<g class="item" data-id="${esc(m.id)}"><title>${esc(m.name)}</title>
         <rect class="swatch" x="${x}" y="${y - L.size * 0.62}" width="${L.size * 1.15}" height="${L.size * 0.62}" rx="2"/>
-        <text x="${x + L.size * 1.5}" y="${y}" font-size="${L.size * 0.82}" class="abbr">${esc(m.abbr)}</text>
-        <text x="${x + L.size * 4.2}" y="${y}" font-size="${L.size}">${esc(name)}${m.off ? ' *' : ''}</text></g>`;
-    }).join('');
+        ${cityBoard ? '' : `<text x="${x + L.size * 1.5}" y="${y}" font-size="${L.size * 0.82}" class="abbr">${esc(m.abbr)}</text>`}
+        <text x="${x + L.size * nameX}" y="${y}" font-size="${L.size}">${esc(name)}${m.off ? ' *' : ''}</text></g>`;
+    }).join('') || (cityBoard ? `<text x="${L.x}" y="${L.top + 16}" class="note">${t('Nenhuma cidade visitada ainda.')}</text>` : '');
+    const offNote = cityBoard ? (items.some((m) => m.off) ? t('sem contorno no mapa') : '')
+      : (b.off.length ? t('fora do quadro (longe do território principal)') : '');
 
     const svg = document.createElementNS(NS, 'svg');
     svg.setAttribute('viewBox', `0 0 ${CW} ${CH}`);
     svg.classList.add('board-svg');
     svg.innerHTML = `${DEFS}${frameSVG()}
-      <text x="100" y="178" class="title" style="font-size:${Math.min(76, 600 / (b.title.length * 0.8))}px">${esc(b.title)}</text>
+      <text x="100" y="178" class="title" style="font-size:${Math.min(76, (L.title_cap || 600) / (b.title.length * 0.8))}px">${esc(b.title)}</text>
       <text x="103" y="226" class="subtitle"></text>
       <line x1="100" y1="250" x2="${100 + Math.max(Math.min(L.width, 640) - 30, 420)}" y2="250" class="rule"/>
       <g class="list">${listSVG}</g>
-      ${b.off.length ? `<text x="140" y="${L.bottom + 24}" class="note">* ${t('fora do quadro (longe do território principal)')}</text>` : ''}
-      <g class="members" filter="url(#lift)">${b.members.map((m) => `<g class="member" data-id="${esc(m.id)}">
+      ${offNote ? `<text x="140" y="${L.bottom + 24}" class="note">* ${offNote}</text>` : ''}
+      <g class="members" filter="url(#lift)">${b.base ? `<g class="state-base"><path class="base" d="${b.base}"/><path class="tex" d="${b.base}"/></g>` : ''}${b.members.map((m) => `<g class="member" data-id="${esc(m.id)}">
         <path class="paint" d="${m.d}"/><path class="ptex" d="${m.d}"/>
         <g class="foil"><path class="base" d="${m.d}"/><path class="tex" d="${m.d}"/></g></g>`).join('')}</g>
       <g class="callouts">${b.members.filter((m) => m.callout).map((m) => {
@@ -146,8 +160,9 @@
           <text x="${c.x}" y="${c.y}" font-size="${c.size}" text-anchor="${left ? 'end' : 'start'}" dominant-baseline="middle">${esc(m.abbr)}</text></g>`;
       }).join('')}</g>
       <g class="labels">${b.members.filter((m) => m.label).map((m) => {
-        const l = m.label;  // no mapa, só a sigla (o nome por extenso fica na lista)
-        return `<text class="label" data-id="${esc(m.id)}" x="${l.x}" y="${l.y}" font-size="${l.size}" text-anchor="middle" dominant-baseline="middle"><title>${esc(m.name)}</title>${esc(m.abbr)}</text>`;
+        // sigla (país, estado) ou nome por extenso (cidade), em uma ou duas linhas
+        const l = m.label, lh = l.size * 1.12, y0 = l.y - ((l.lines.length - 1) * lh) / 2;
+        return `<text class="label${cityBoard ? ' city' : ''}" data-id="${esc(m.id)}" x="${l.x}" font-size="${l.size}" text-anchor="middle"><title>${esc(m.name)}</title>${l.lines.map((s, i) => `<tspan x="${l.x}" y="${y0 + i * lh}" dominant-baseline="middle">${esc(s)}</tspan>`).join('')}</text>`;
       }).join('')}</g>`;
     root.append(el('<div class="board-wrap"></div>'));
     $('.board-wrap', root).append(svg);
@@ -175,6 +190,7 @@
       const box = el(`<div class="board-actions glass"><b>${esc(up(m.name))}</b><div class="row"></div></div>`);
       const row = $('.row', box);
       if (mk === 'country' && b.kind === 'continent') row.append(link(t('Abrir quadro'), `/boards/country/${encodeURIComponent(m.id)}`));
+      if (mk === 'state' && b.drill) row.append(link(t('Abrir quadro'), `/boards/state/${encodeURIComponent(m.id)}`));
       row.append(link(t('Ver no mapa'), `/?open=${mk}:${encodeURIComponent(m.id)}`));
       const close = el('<button class="btn ghost">×</button>');
       close.onclick = () => box.remove();
@@ -228,7 +244,7 @@
     await loadVisited();
     const [, , kind, id] = location.pathname.split('/');
     try {
-      await (kind ? boardView(kind === 'continent' ? 'continent' : 'country', decodeURIComponent(id)) : index());
+      await (kind ? boardView(['continent', 'state'].includes(kind) ? kind : 'country', decodeURIComponent(id)) : index());
     } catch (e) {
       root.append(el(`<p class="empty">${t('Erro ao carregar: {erro}', { erro: esc(e.message) })}</p>`));
     }

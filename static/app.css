@@ -945,7 +945,10 @@ body.no-intro #setup-map, body.no-intro .setup, body.no-intro .setup-card { tran
 .board-svg .rule { stroke: url(#gold-line); stroke-width: 1.5; opacity: .7; }
 .board-svg .note { font: italic 15px system-ui, sans-serif; fill: #8f8466; }
 .board-svg .member path { stroke: #1d1a14; stroke-width: .8; cursor: pointer; }
-.board-svg .member .foil .base { fill: url(#gold); filter: url(#grain); }
+.board-svg .member .foil .base, .board-svg .state-base .base { fill: url(#gold); filter: url(#grain); }
+.board-svg .state-base .tex { fill: url(#paper); mix-blend-mode: overlay; pointer-events: none; }
+.board-svg .state-base path { stroke: none; }
+.board-svg .label.city { font-weight: 600; stroke-width: 2px; }
 .board-svg .member .foil .tex { fill: url(#paper); stroke: none; pointer-events: none; mix-blend-mode: overlay; }
 .board-svg .member.on .foil { display: none; }
 .board-svg .member .paint { fill: url(#silver); }

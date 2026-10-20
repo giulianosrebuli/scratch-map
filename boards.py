@@ -22,7 +22,7 @@ from functools import lru_cache, wraps
 from pathlib import Path
 
 import numpy as np
-from shapely import STRtree, box, clip_by_rect, from_wkb
+from shapely import STRtree, box, clip_by_rect, from_wkb, make_valid
 from shapely.geometry import MultiPolygon, Point, Polygon
 from shapely.ops import polylabel, transform
 
@@ -64,7 +64,7 @@ CONTINENTS = {
 MEXICO = "MX"  # o Natural Earth põe na América Central
 
 
-LAYOUT = 6  # suba quando mudar o desenho do quadro: invalida o cache em disco
+LAYOUT = 9  # suba quando mudar o desenho do quadro: invalida o cache em disco
 
 
 def disk_cached(fn):
@@ -155,31 +155,50 @@ def abbr(pid, name):
     return (words[0] if words else name)[:3].upper()
 
 
-def fit_text(poly, points, text, taken, sizes=LABEL_SIZES):
-    """(x, y, tamanho) da sigla inteira dentro do polígono, deitada, no
-    primeiro ponto em que cabe (a letra maior primeiro), sem encostar nas
-    siglas já postas (`taken`, retângulos). Não cabe: None (vai para fora,
-    com o traço)."""
-    inner = poly.buffer(-2)
+def fit_text(poly, points, options, taken, sizes=LABEL_SIZES):
+    """(x, y, tamanho, linhas) do texto inteiro dentro do polígono, deitado,
+    no primeiro ponto em que cabe (a letra maior primeiro), sem encostar nos
+    já postos (`taken`, retângulos). options: as formas de escrever, cada uma
+    uma lista de linhas ([["SP"]], ou o nome numa linha e em duas). Não cabe:
+    None (sigla vai para fora, com o traço; nome de cidade fica sem)."""
+    x0, y0, x1, y1 = poly.bounds
+    inner = {}
     for size in sizes:
-        w, h = len(text) * size * CAPS + 2, size * 1.1
-        for cx, cy in points:
-            r = box(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)
-            if inner.contains(r) and not any(r.intersects(o) for o in taken):
-                taken.append(r.buffer(3))
-                return cx, cy, size
+        pad = min(2, size * 0.18)  # letra miúda: folga da borda proporcional
+        for lines in options:
+            w, h = max(len(t) for t in lines) * size * CAPS + 2, len(lines) * size * 1.12
+            if w > x1 - x0 - 2 * pad or h > y1 - y0 - 2 * pad:  # nem no bbox cabe: nem tenta
+                continue
+            ins = inner.setdefault(pad, poly.buffer(-pad))
+            for cx, cy in points:
+                r = box(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)
+                if ins.contains(r) and not any(r.intersects(o) for o in taken):
+                    taken.append(r.buffer(pad * 1.5))
+                    return cx, cy, size, lines
     return None
+
+
+def name_options(name):
+    """O nome em caixa alta numa linha e, se tiver mais de uma palavra, em duas
+    (quebrando no espaço mais perto do meio)."""
+    name = name.upper()
+    words = name.split()
+    out = [[name]]
+    if len(words) > 1:
+        i = min(range(1, len(words)), key=lambda k: abs(len(" ".join(words[:k])) - len(" ".join(words[k:]))))
+        out.append([" ".join(words[:i]), " ".join(words[i:])])
+    return out
 
 
 TITLE_SIZE = 76    # letra do título (o navegador reduz se não couber em TITLE_MAX)
 TITLE_MAX = 600
 
 
-def title_width(title):
-    return min(len(title) * TITLE_SIZE * 0.8, TITLE_MAX)
+def title_width(title, cap=TITLE_MAX):
+    return min(len(title) * TITLE_SIZE * 0.8, cap)
 
 
-def list_layout(names, title):
+def list_layout(names, title, title_cap=TITLE_MAX):
     """Lista em colunas embaixo do título, o mais estreita possível (o mapa
     fica com o resto): entre as letras de 16 a 13, a de menos colunas (empate:
     a letra maior), em no máximo 5 colunas; não cabendo, letra 11 e
@@ -202,7 +221,7 @@ def list_layout(names, title):
         col_w = 640 / -(-len(names) // rows)
         best = {"size": size, "row_h": row_h, "rows": rows, "col_w": col_w, "width": 640,
                 "cut": max(4, int((col_w - 22 - size * 1.5) // (size * CAPS)))}
-    best["width"] = max(best["width"], title_width(title))
+    best["width"] = max(best["width"], title_width(title, title_cap), 0 if names else 340)  # sem nomes: lista no navegador
     best.update(x=x, top=top, bottom=bottom)
     return best
 
@@ -334,12 +353,20 @@ def main_cluster(projected, near, keep=0.01):
     return out, dropped
 
 
-def build(bbox, members, names, title, codes=None, prune=None):
+CITY_SIZES = (13, 11, 9.5, 8, 6.5, 5.5)  # nomes de cidade: pequenos (legíveis na imagem exportada), só dentro
+
+
+def build(bbox, members, names, title, codes=None, prune=None, cities=False, base=None):
     """members: [(id, nome, geom)] raspáveis, só eles (sem o resto do continente);
     names: os nomes da lista (inclusive os fora do quadro). A lista fica com o
     espaço de que precisa e o mapa com o resto, com margem para os nomes com
-    traço só do lado que precisar."""
-    lst = list_layout(names, title)
+    traço só do lado que precisar. cities: quadro de estado (nome por extenso,
+    pequeno, só dentro; sem traço); base: o contorno do estado, desenhado por
+    baixo (o que nenhuma cidade cobre)."""
+    # quadro de estado: lista (as visitadas) montada no navegador, numa coluna
+    # estreita; o título comprido diminui em vez de alargar a coluna
+    lst = list_layout(names, title, 380 if cities else TITLE_MAX)
+    lst["title_cap"] = 380 if cities else TITLE_MAX
     side_map = (LIST[0] + lst["width"] + 30, MAP_Y[0], MAP_X1, MAP_Y[1])
     # Recorta depois de projetar: o recorte é um retângulo na projeção (o bbox
     # em graus vira um trapézio curvo na cônica, e cortar por ele deixava a
@@ -356,6 +383,8 @@ def build(bbox, members, names, title, codes=None, prune=None):
         c = polygonal(clip_by_rect(transform(proj, polygonal(clip_by_rect(g, *loose))), x0, y0, x1, y1))
         return None if c.is_empty else c
     projected = [(i, nm, c) for i, nm, g in members if (c := clip(g)) is not None]
+    if base is not None:
+        base = clip(base)
     dropped = []
     if prune:  # só o bloco principal (main_cluster); prune = distância de ligação
         projected, dropped = main_cluster(projected, prune)
@@ -370,7 +399,7 @@ def build(bbox, members, names, title, codes=None, prune=None):
     wide_lst = list_layout_wide(names)
     wide_map = (WIDE[0], WIDE_MAP_TOP, WIDE[1], wide_lst["top"] - 25)
     MAP = side_map
-    if fit(wide_map) > fit(side_map):
+    if not cities and fit(wide_map) > fit(side_map):
         MAP, lst = wide_map, {**wide_lst, "layout": "wide"}
 
     def attempt(gl, gr):
@@ -390,27 +419,31 @@ def build(bbox, members, names, title, codes=None, prune=None):
             main = max(parts, key=lambda p: p.area)
             pole = polylabel(main, tolerance=0.5)
             m = {"id": mid, "name": name, "abbr": (codes or {}).get(mid) or abbr(mid, name), "d": svg_path(g)}
-            fit = fit_text(main, candidates(main, pole), m["abbr"], taken)
-            if fit:
-                m["label"] = {"x": round(fit[0], 1), "y": round(fit[1], 1), "size": fit[2]}
+            if cities:
+                fit = fit_text(main, candidates(main, pole, k=10), name_options(name), taken, CITY_SIZES)
             else:
+                fit = fit_text(main, candidates(main, pole), [[m["abbr"]]], taken)
+            if fit:
+                m["label"] = {"x": round(fit[0], 1), "y": round(fit[1], 1), "size": fit[2], "lines": fit[3]}
+            elif not cities:
                 co = {"m": m, "tx": round(pole.x, 1), "ty": round(pole.y, 1)}
                 (left if pole.x < ox + mw / 2 else right).append(co)
             out.append(m)
-        return out, left, right, (ox, oy, ox + mw, oy + mh)
+        base_d = svg_path(polygonal(to_px(base).simplify(0.4))) if base is not None else None
+        return out, left, right, (ox, oy, ox + mw, oy + mh), base_d
 
     # 1ª passada sem margem, para saber de que lado vão nomes com traço; a 2ª
     # abre a margem só desses lados (o mapa encolhe um pouco)
-    out, left, right, _ = attempt(0, 0)
+    out, left, right, _, base_d = attempt(0, 0)
     if left or right:
-        out, left, right, (ax0, ay0, ax1, ay1) = attempt(GUTTER if left else 0, GUTTER if right else 0)
+        out, left, right, (ax0, ay0, ax1, ay1), base_d = attempt(GUTTER if left else 0, GUTTER if right else 0)
         place_callouts(left, ax0 - 10, MAP[1] + 6, MAP[3])
         place_callouts(right, ax1 + 10, MAP[1] + 6, MAP[3])
         for side, items in (("left", left), ("right", right)):
             for co in items:
                 co["m"]["callout"] = {"side": side, "x": co["x"], "y": round(co["y"], 1), "size": CALLOUT_SIZE,
                                       "tx": co["tx"], "ty": co["ty"], "path": trace(co, side)}
-    return {"members": out, "list": lst, "dropped": dropped}
+    return {"members": out, "list": lst, "dropped": dropped, **({"base": base_d} if base_d else {})}
 
 
 @disk_cached
@@ -474,5 +507,87 @@ def country(boards_db, geo_db, cid, lang):
     out = build(bbox, members, [n for _, n, _ in members + off], title)
     out.pop("dropped")
     out.update(kind="country", id=cid, title=title, member_kind="state" if names else "country",
+               drill=bool(names) and (Path(boards_db).parent / "localities").exists(),
                off=[{"id": i, "name": n, "abbr": abbr(i, n)} for i, n, _ in off])
+    return out
+
+
+def city_areas(localities, state_shape, country, cities):
+    """{id da cidade: contorno} para as cidades de um estado, com o mesmo
+    critério de geoshapes.find_area (nome igual > parecido, o maior; sem nome
+    parecido, o menor que contém o ponto), a partir das áreas do Overture no
+    bbox do estado, recortadas pelo contorno do estado (litoral igual ao do
+    quadro do país). Duas cidades na mesma área: fica a mais populosa."""
+    import duckdb
+    from shapely import STRtree as Tree
+    from shapely import wkb
+
+    import geoshapes
+    x0, y0, x1, y1 = state_shape.bounds
+    con = duckdb.connect()
+    # as grandes (Vitória, que inclui a ilha da Trindade) ficam num arquivo à
+    # parte e, como em geoshapes.find_area, só valem com o nome igual
+    rows = con.execute(f"""SELECT division_id, name, name_pt, geometry, false
+                           FROM read_parquet('{localities}/*/*/*.parquet', hive_partitioning = true)
+                           WHERE country = ? AND x1 >= ? AND x0 <= ? AND y1 >= ? AND y0 <= ?
+                             AND x1 - x0 < {geoshapes.MAX_SPAN_DEG} AND y1 - y0 < {geoshapes.MAX_SPAN_DEG}
+                           UNION ALL
+                           SELECT division_id, name, name_pt, geometry, true
+                           FROM '{localities.parent / "localities_large.parquet"}'
+                           WHERE country = ? AND x1 >= ? AND x0 <= ? AND y1 >= ? AND y0 <= ?""",
+                       [country, x0, x1, y0, y1] * 2).fetchall()
+    con.close()
+    areas = [(div, (n, npt), wkb.loads(bytes(g)), large) for div, n, npt, g, large in rows]
+    if not areas:
+        return {}
+    tree = Tree([a[2] for a in areas])
+    chosen = {}
+    for cid, name, lat, lon, pop in sorted(cities, key=lambda c: -(c[4] or 0)):
+        pt = Point(lon, lat)
+        want = geoshapes.norm(name)
+        cand = []
+        for k in tree.query(pt, predicate="within"):
+            div, names, g, large = areas[int(k)]
+            same = geoshapes._same_name(want, names)
+            if large and same < 2:
+                continue
+            cand.append((same, g.area, div, g))
+        if not cand:
+            continue
+        top = max(c[0] for c in cand)
+        best = max((c for c in cand if c[0] == top), key=lambda c: c[1]) if top else min(cand, key=lambda c: c[1])
+        if best[2] in {v[0] for v in chosen.values()}:
+            continue  # área já de uma cidade mais populosa
+        chosen[str(cid)] = (best[2], best[3])
+    out = {}
+    for cid, (_, g) in chosen.items():
+        g = polygonal(make_valid(g).intersection(state_shape))
+        if not g.is_empty:
+            out[cid] = g
+    return out
+
+
+@disk_cached
+def state(boards_db, geo_db, sid, lang):
+    """Quadro de um estado com as suas cidades (só na instalação completa: os
+    contornos vêm das áreas do Overture em geodata/localities)."""
+    localities = Path(boards_db).parent / "localities"
+    con, geo = _db(boards_db), _db(geo_db)
+    row = con.execute("SELECT geom, country_id FROM shapes WHERE kind = 'state' AND id = ?", (sid,)).fetchone()
+    if row is None or not localities.exists():
+        return None
+    shape_s = from_wkb(row["geom"])
+    title = geo.execute("SELECT name FROM states WHERE id = ?", (sid,)).fetchone()
+    title = title[0] if title else sid
+    cities = geo.execute("SELECT id, name, lat, lon, population FROM cities WHERE state_id = ?", (sid,)).fetchall()
+    areas = city_areas(localities, shape_s, row["country_id"], [tuple(c) for c in cities])
+    names = {str(c["id"]): c["name"] for c in cities}
+    members = [(cid, names[cid], g) for cid, g in areas.items()]
+    out = build(main_bbox(shape_s), members, [], title, cities=True, base=shape_s)
+    out.pop("dropped")
+    country = geo.execute(f"SELECT id, {'COALESCE(name_en, name)' if lang == 'en' else 'name'} FROM countries WHERE id = ?",
+                          (row["country_id"],)).fetchone()
+    out.update(kind="state", id=sid, title=title, member_kind="city",
+               country={"id": country[0], "title": country[1]} if country else None,
+               off=[{"id": str(c["id"]), "name": c["name"], "abbr": ""} for c in cities if str(c["id"]) not in areas])
     return out
