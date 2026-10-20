@@ -22,6 +22,7 @@ from functools import lru_cache, wraps
 from pathlib import Path
 
 import numpy as np
+import shapely
 from shapely import STRtree, box, clip_by_rect, from_wkb, make_valid
 from shapely.geometry import MultiPolygon, Point, Polygon
 from shapely.ops import polylabel, transform
@@ -52,11 +53,13 @@ CONTINENTS = {
                         "match": lambda c, s: s in ("Central America", "Caribbean")},
     "south-america": {"pt": "América do Sul", "en": "South America", "bbox": (-82, -56, -34, 13),
                        "match": lambda c, s: c == "South America"},
+    # insets: as lupas (bbox em graus) das regiões apertadas
     "europe": {"pt": "Europa", "en": "Europe", "bbox": (-25, 34, 45, 71.5),
+               "insets": [(2.0, 45.6, 17.5, 53.8), (12.0, 39.5, 23.5, 46.9)],  # Benelux e Alpes; Bálcãs
                "match": lambda c, s: c == "Europe"},
-    "africa": {"pt": "África", "en": "Africa", "bbox": (-26, -36, 60, 38),
+    "africa": {"pt": "África", "en": "Africa", "bbox": (-26, -36, 60, 38), "insets": [(-18, 3.5, 3.5, 16.5)],
                "match": lambda c, s: c == "Africa"},
-    "asia": {"pt": "Ásia", "en": "Asia", "bbox": (25, -11, 150, 56),
+    "asia": {"pt": "Ásia", "en": "Asia", "bbox": (25, -11, 150, 56), "insets": [(33.5, 22.5, 57, 35.5)],
              "match": lambda c, s: c == "Asia"},
     "oceania": {"pt": "Oceania", "en": "Oceania", "bbox": (110, -48, 180, 2),
                 "match": lambda c, s: c == "Oceania"},
@@ -64,7 +67,7 @@ CONTINENTS = {
 MEXICO = "MX"  # o Natural Earth põe na América Central
 
 
-LAYOUT = 9  # suba quando mudar o desenho do quadro: invalida o cache em disco
+LAYOUT = 13  # suba quando mudar o desenho do quadro: invalida o cache em disco
 
 
 def disk_cached(fn):
@@ -356,7 +359,7 @@ def main_cluster(projected, near, keep=0.01):
 CITY_SIZES = (13, 11, 9.5, 8, 6.5, 5.5)  # nomes de cidade: pequenos (legíveis na imagem exportada), só dentro
 
 
-def build(bbox, members, names, title, codes=None, prune=None, cities=False, base=None):
+def build(bbox, members, names, title, codes=None, prune=None, cities=False, base=None, insets=None):
     """members: [(id, nome, geom)] raspáveis, só eles (sem o resto do continente);
     names: os nomes da lista (inclusive os fora do quadro). A lista fica com o
     espaço de que precisa e o mapa com o resto, com margem para os nomes com
@@ -402,23 +405,95 @@ def build(bbox, members, names, title, codes=None, prune=None, cities=False, bas
     if not cities and fit(wide_map) > fit(side_map):
         MAP, lst = wide_map, {**wide_lst, "layout": "wide"}
 
+    # Lupa: as regiões apertadas (Bálcãs, Pequenas Antilhas…) ganham um
+    # recorte ampliado num canto livre do mapa; os países de lá têm a sigla
+    # (ou o traço) na lupa, e não no mapa principal.
+    src_boxes = [transform(proj, box(*bb).segmentize(0.2)).bounds for bb in (insets or [])]
+    owner = {}  # porção → a lupa em que ela tem o nome (a primeira que a contém)
+    for n_, sb in enumerate(src_boxes):
+        for mid, _, g in projected:
+            parts = list(g.geoms) if hasattr(g, "geoms") else [g]
+            if mid not in owner and box(*sb).contains(max(parts, key=lambda q: q.area).representative_point()):
+                owner[mid] = n_
+    in_inset = set(owner)
+
+    main = lay(projected, MAP, (x0, y0, x1, y1), cities, codes, skip=in_inset, base=base)
+    out = {"members": main["members"], "list": lst, "dropped": dropped, **({"base": main["base"]} if main["base"] else {})}
+    out["insets"] = []
+    taken_rects = [box(*r) for r in main["label_boxes"]] + main["traces"]
+    drawn = MultiPolygon([q for m in main["geoms"] for q in getattr(m, "geoms", [m])]).buffer(0)
+    for n_, sb in enumerate(src_boxes):
+        sx0, sy0, sx1, sy1 = sb
+        sub = [(mid, nm, c) for mid, nm, g in projected
+               if not (c := polygonal(clip_by_rect(g, sx0, sy0, sx1, sy1))).is_empty]
+        if not sub:
+            continue
+        rect = place_inset(sx1 - sx0, sy1 - sy0, MAP, drawn, taken_rects)
+        if rect is None:  # sem lugar livre: fica sem lupa (os nomes já estão com traço)
+            continue
+        ix0, iy0, ix1, iy1 = rect.bounds
+        taken_rects.append(rect)
+        # na lupa, só os dela têm nome; os vizinhos aparecem sem (já têm no mapa)
+        mine = {mid for mid, o in owner.items() if o == n_}
+        inner = lay(sub, (ix0 + 6, iy0 + 6, ix1 - 6, iy1 - 6), sb, cities, codes, gutter=70, align="center",
+                    skip={mid for mid, _, _ in sub} - mine)
+        p0 = main["to_px"](box(*sb)).bounds
+        out["insets"].append({"rect": [round(v, 1) for v in rect.bounds], "src": [round(v, 1) for v in p0],
+                              "members": inner["members"]})
+    return out
+
+
+def place_inset(sw, sh, region, drawn, taken):
+    """Retângulo da lupa num lugar livre da região do mapa: varre uma grade de
+    posições e fica com a que cobre menos terra, sem encostar em nome, traço
+    ou outra lupa; sem lugar quase livre, tenta menor (até 60% do tamanho
+    inicial). None: não cabe."""
+    land = drawn.buffer(4)
+    hard = shapely.union_all([t.buffer(3) for t in taken]) if taken else None
+    for frac in (0.5, 0.44, 0.38, 0.32, 0.3):
+        k = min((region[2] - region[0]) * frac / sw, (region[3] - region[1]) * frac / sh)
+        iw, ih = sw * k, sh * k
+        best = None
+        for cx in np.linspace(region[0] + 4, region[2] - iw - 4, 14):
+            for cy in np.linspace(region[1] + 4, region[3] - ih - 4, 10):
+                r = box(cx, cy, cx + iw, cy + ih)
+                if hard is not None and r.intersects(hard):
+                    continue
+                cost = land.intersection(r).area / r.area
+                if best is None or cost < best[0]:
+                    best = (cost, r)
+        if best and best[0] < 0.04:
+            return best[1]
+    return None
+
+
+def lay(projected, region, bnds, cities, codes, skip=frozenset(), base=None, gutter=GUTTER, align="right"):
+    """Encaixa as porções (projetadas, enquadradas por bnds) na região do
+    quadro, com nomes dentro ou com traço (siglas) numa margem aberta só do
+    lado que precisar. skip: porções sem nome aqui (vão na lupa)."""
+    x0, y0, x1, y1 = bnds
+
     def attempt(gl, gr):
-        """Encaixa o mapa em MAP menos as margens; devolve (membros, esquerda, direita)."""
-        mx0, my0, mx1, my1 = MAP[0] + gl, MAP[1], MAP[2] - gr, MAP[3]
+        mx0, my0, mx1, my1 = region[0] + gl, region[1], region[2] - gr, region[3]
         scale = min((mx1 - mx0) / (x1 - x0), (my1 - my0) / (y1 - y0))
         mw, mh = (x1 - x0) * scale, (y1 - y0) * scale
-        ox, oy = mx1 - mw if gl == 0 and gr == 0 else (mx0 + mx1 - mw) / 2, (my0 + my1 - mh) / 2
+        right_aligned = align == "right" and gl == 0 and gr == 0
+        ox, oy = mx1 - mw if right_aligned else (mx0 + mx1 - mw) / 2, (my0 + my1 - mh) / 2
         to_px = lambda g: transform(lambda x, y, z=None: (ox + (x - x0) * scale, oy + (y1 - y) * scale), g)
-        out, left, right, taken = [], [], [], []
+        out, left, right, taken, geoms = [], [], [], [], []
         # os maiores primeiro: pegam o lugar dos nomes antes dos vizinhos pequenos
         for mid, name, g in sorted(projected, key=lambda m: -m[2].area):
             g = polygonal(to_px(g).simplify(0.4))  # o resto da simplificação, já em px
             if g.is_empty:
                 continue
+            geoms.append(g)
             parts = list(g.geoms) if hasattr(g, "geoms") else [g]
             main = max(parts, key=lambda p: p.area)
             pole = polylabel(main, tolerance=0.5)
             m = {"id": mid, "name": name, "abbr": (codes or {}).get(mid) or abbr(mid, name), "d": svg_path(g)}
+            out.append(m)
+            if mid in skip:
+                continue
             if cities:
                 fit = fit_text(main, candidates(main, pole, k=10), name_options(name), taken, CITY_SIZES)
             else:
@@ -428,22 +503,29 @@ def build(bbox, members, names, title, codes=None, prune=None, cities=False, bas
             elif not cities:
                 co = {"m": m, "tx": round(pole.x, 1), "ty": round(pole.y, 1)}
                 (left if pole.x < ox + mw / 2 else right).append(co)
-            out.append(m)
         base_d = svg_path(polygonal(to_px(base).simplify(0.4))) if base is not None else None
-        return out, left, right, (ox, oy, ox + mw, oy + mh), base_d
+        return out, left, right, (ox, oy, ox + mw, oy + mh), base_d, to_px, taken, geoms
 
     # 1ª passada sem margem, para saber de que lado vão nomes com traço; a 2ª
     # abre a margem só desses lados (o mapa encolhe um pouco)
-    out, left, right, _, base_d = attempt(0, 0)
+    out, left, right, frame, base_d, to_px, taken, geoms = attempt(0, 0)
+    boxes = [t.bounds for t in taken]
     if left or right:
-        out, left, right, (ax0, ay0, ax1, ay1), base_d = attempt(GUTTER if left else 0, GUTTER if right else 0)
-        place_callouts(left, ax0 - 10, MAP[1] + 6, MAP[3])
-        place_callouts(right, ax1 + 10, MAP[1] + 6, MAP[3])
+        out, left, right, frame, base_d, to_px, taken, geoms = attempt(gutter if left else 0, gutter if right else 0)
+        boxes = [t.bounds for t in taken]
+        ax0, ay0, ax1, ay1 = frame
+        place_callouts(left, ax0 - 10, region[1] + 6, region[3])
+        place_callouts(right, ax1 + 10, region[1] + 6, region[3])
         for side, items in (("left", left), ("right", right)):
             for co in items:
                 co["m"]["callout"] = {"side": side, "x": co["x"], "y": round(co["y"], 1), "size": CALLOUT_SIZE,
                                       "tx": co["tx"], "ty": co["ty"], "path": trace(co, side)}
-    return {"members": out, "list": lst, "dropped": dropped, **({"base": base_d} if base_d else {})}
+                lx = co["x"] if side == "right" else co["x"] - 60
+                boxes.append((lx, co["y"] - 10, lx + 60, co["y"] + 10))
+    traces = [shapely.LineString([tuple(map(float, p.split(","))) for p in m["callout"]["path"].split()])
+              for m in out if "callout" in m]
+    return {"members": out, "base": base_d, "frame": frame, "to_px": to_px, "label_boxes": boxes, "geoms": geoms,
+            "traces": traces}
 
 
 @disk_cached
@@ -469,7 +551,8 @@ def continent(boards_db, geo_db, slug, lang):
         if is_member:
             (members if g.intersects(frame) else off).append((cid, names.get(cid, cid), g))
     title = spec[lang if lang == "en" else "pt"]
-    out = build(spec["bbox"], members, [n for _, n, _ in members + off], title, codes=codes, prune=spec.get("prune"))
+    out = build(spec["bbox"], members, [n for _, n, _ in members + off], title, codes=codes, prune=spec.get("prune"),
+                insets=spec.get("insets"))
     off = [(i, n) for i, n, _ in off] + out.pop("dropped")
     out.update(kind="continent", id=slug, title=title, member_kind="country",
                off=[{"id": i, "name": n, "abbr": codes.get(i) or abbr(i, n)} for i, n in sorted(off, key=lambda x: x[1])])

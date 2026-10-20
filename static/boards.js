@@ -141,6 +141,36 @@
     const offNote = cityBoard ? (items.some((m) => m.off) ? t('sem contorno no mapa') : '')
       : (b.off.length ? t('fora do quadro (longe do território principal)') : '');
 
+    // porções, traços e nomes (o mapa principal e as lupas usam os mesmos)
+    const membersSVG = (ms) => ms.map((m) => `<g class="member" data-id="${esc(m.id)}">
+        <path class="paint" d="${m.d}"/><path class="ptex" d="${m.d}"/>
+        <g class="foil"><path class="base" d="${m.d}"/><path class="tex" d="${m.d}"/></g></g>`).join('');
+    const calloutsSVG = (ms) => `<g class="callouts">${ms.filter((m) => m.callout).map((m) => {
+      const c = m.callout, left = c.side === 'left';
+      return `<g class="callout" data-id="${esc(m.id)}"><polyline points="${c.path}"/>
+        <circle cx="${c.tx}" cy="${c.ty}" r="2.2"/>
+        <text x="${c.x}" y="${c.y}" font-size="${c.size}" text-anchor="${left ? 'end' : 'start'}" dominant-baseline="middle">${esc(m.abbr)}</text></g>`;
+    }).join('')}</g>`;
+    const labelsSVG = (ms) => `<g class="labels">${ms.filter((m) => m.label).map((m) => {
+      // sigla (país, estado) ou nome por extenso (cidade), em uma ou duas linhas
+      const l = m.label, lh = l.size * 1.12, y0 = l.y - ((l.lines.length - 1) * lh) / 2;
+      return `<text class="label${cityBoard ? ' city' : ''}" data-id="${esc(m.id)}" x="${l.x}" font-size="${l.size}" text-anchor="middle"><title>${esc(m.name)}</title>${l.lines.map((s, i) => `<tspan x="${l.x}" y="${y0 + i * lh}" dominant-baseline="middle">${esc(s)}</tspan>`).join('')}</text>`;
+    }).join('')}</g>`;
+    // Lupa: o retângulo de origem no mapa, a linha até a ampliação e a
+    // ampliação (fundo, porções recortadas pela moldura, nomes, moldura)
+    const insetSVG = (ins, i) => {
+      const [x0, y0, x1, y1] = ins.rect, [s0, t0, s1, t1] = ins.src;
+      const cx = (x0 + x1) / 2 < (s0 + s1) / 2 ? x1 : x0, cy = (y0 + y1) / 2 < (t0 + t1) / 2 ? y1 : y0;
+      const sx = cx === x1 ? s0 : s1, sy = cy === y1 ? t0 : t1;
+      return `<g class="inset">
+        <rect class="inset-src" x="${s0}" y="${t0}" width="${s1 - s0}" height="${t1 - t0}"/>
+        <line class="inset-link" x1="${sx}" y1="${sy}" x2="${cx}" y2="${cy}"/>
+        <clipPath id="inset-${i}"><rect x="${x0}" y="${y0}" width="${x1 - x0}" height="${y1 - y0}"/></clipPath>
+        <rect class="inset-bg" x="${x0}" y="${y0}" width="${x1 - x0}" height="${y1 - y0}"/>
+        <g clip-path="url(#inset-${i})"><g class="members">${membersSVG(ins.members)}</g>${calloutsSVG(ins.members)}${labelsSVG(ins.members)}</g>
+        <rect class="inset-frame" x="${x0}" y="${y0}" width="${x1 - x0}" height="${y1 - y0}"/></g>`;
+    };
+
     const svg = document.createElementNS(NS, 'svg');
     svg.setAttribute('viewBox', `0 0 ${CW} ${CH}`);
     svg.classList.add('board-svg');
@@ -150,20 +180,9 @@
       <line x1="100" y1="250" x2="${100 + Math.max(Math.min(L.width, 640) - 30, 420)}" y2="250" class="rule"/>
       <g class="list">${listSVG}</g>
       ${offNote ? `<text x="140" y="${L.bottom + 24}" class="note">* ${offNote}</text>` : ''}
-      <g class="members" filter="url(#lift)">${b.base ? `<g class="state-base"><path class="base" d="${b.base}"/><path class="tex" d="${b.base}"/></g>` : ''}${b.members.map((m) => `<g class="member" data-id="${esc(m.id)}">
-        <path class="paint" d="${m.d}"/><path class="ptex" d="${m.d}"/>
-        <g class="foil"><path class="base" d="${m.d}"/><path class="tex" d="${m.d}"/></g></g>`).join('')}</g>
-      <g class="callouts">${b.members.filter((m) => m.callout).map((m) => {
-        const c = m.callout, left = c.side === 'left';
-        return `<g class="callout" data-id="${esc(m.id)}"><polyline points="${c.path}"/>
-          <circle cx="${c.tx}" cy="${c.ty}" r="2.2"/>
-          <text x="${c.x}" y="${c.y}" font-size="${c.size}" text-anchor="${left ? 'end' : 'start'}" dominant-baseline="middle">${esc(m.abbr)}</text></g>`;
-      }).join('')}</g>
-      <g class="labels">${b.members.filter((m) => m.label).map((m) => {
-        // sigla (país, estado) ou nome por extenso (cidade), em uma ou duas linhas
-        const l = m.label, lh = l.size * 1.12, y0 = l.y - ((l.lines.length - 1) * lh) / 2;
-        return `<text class="label${cityBoard ? ' city' : ''}" data-id="${esc(m.id)}" x="${l.x}" font-size="${l.size}" text-anchor="middle"><title>${esc(m.name)}</title>${l.lines.map((s, i) => `<tspan x="${l.x}" y="${y0 + i * lh}" dominant-baseline="middle">${esc(s)}</tspan>`).join('')}</text>`;
-      }).join('')}</g>`;
+      <g class="members" filter="url(#lift)">${b.base ? `<g class="state-base"><path class="base" d="${b.base}"/><path class="tex" d="${b.base}"/></g>` : ''}${membersSVG(b.members)}</g>
+      ${calloutsSVG(b.members)}${labelsSVG(b.members)}
+      ${(b.insets || []).map(insetSVG).join('')}`;
     root.append(el('<div class="board-wrap"></div>'));
     $('.board-wrap', root).append(svg);
 

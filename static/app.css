@@ -948,6 +948,10 @@ body.no-intro #setup-map, body.no-intro .setup, body.no-intro .setup-card { tran
 .board-svg .member .foil .base, .board-svg .state-base .base { fill: url(#gold); filter: url(#grain); }
 .board-svg .state-base .tex { fill: url(#paper); mix-blend-mode: overlay; pointer-events: none; }
 .board-svg .state-base path { stroke: none; }
+.board-svg .inset-src { fill: none; stroke: #e8c766; stroke-width: 1.2; stroke-dasharray: 4 3; opacity: .8; }
+.board-svg .inset-link { stroke: #e8c766; stroke-width: 1; stroke-dasharray: 4 3; opacity: .7; }
+.board-svg .inset-bg { fill: url(#mat); }
+.board-svg .inset-frame { fill: none; stroke: url(#gold-line); stroke-width: 3; }
 .board-svg .label.city { font-weight: 600; stroke-width: 2px; }
 .board-svg .member .foil .tex { fill: url(#paper); stroke: none; pointer-events: none; mix-blend-mode: overlay; }
 .board-svg .member.on .foil { display: none; }
