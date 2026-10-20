@@ -26,6 +26,7 @@ from PIL import Image, ImageOps
 from pillow_heif import register_heif_opener
 from shapely.geometry import Point, shape
 
+import boards
 import boundaries
 import i18n
 import installer
@@ -40,6 +41,7 @@ DATA = Path(os.environ.get("SCRATCH_DATA", ROOT / "data"))
 GEODATA = Path(os.environ.get("SCRATCH_GEODATA", ROOT / "geodata"))
 GEO_DB = GEODATA / "geo.db"
 TILES = GEODATA / "world.pmtiles"
+BOARDS_DB = GEODATA / "boards.db"   # quadros de raspar (scripts/build_boards.py)
 KINDS = ("country", "state", "city", "airport")   # o que pode ser marcado (visits)
 PHOTO_KINDS = KINDS + ("landmark",)                # o que pode ter foto
 DISPLAY_PX = 2000  # lado maior da versão exibida
@@ -276,7 +278,7 @@ SETUP_OPEN = ("/setup", "/api/setup", "/static/", "/api/restore", "/api/settings
 
 # Perfis (profiles.py): o do cookie; com um perfil só, ele mesmo. Com vários e
 # nenhum escolhido, a tela de escolha (que usa o primeiro só para idioma e tema).
-PROFILE_FREE = ("/static/", "/perfis") + PWA_PATHS
+PROFILE_FREE = ("/static/", "/profiles") + PWA_PATHS
 
 
 @app.before_request
@@ -287,9 +289,9 @@ def pick_profile():
         if len(every) == 1 or request.path.startswith(PROFILE_FREE):
             p = every[0]
         elif request.path.startswith("/api/"):
-            abort(409, "escolha um perfil em /perfis")
+            abort(409, "escolha um perfil em /profiles")
         else:
-            return redirect("/perfis")
+            return redirect("/profiles")
     g.prof = p
     return None
 
@@ -340,9 +342,56 @@ def index():
     return render_template("index.html", geo_v=geo_v, settings=settings())
 
 
+@app.get("/boards")
+@app.get("/boards/<kind>/<board_id>")
+def boards_page(kind=None, board_id=None):
+    """Quadros de raspar (boards.py): escolher o quadro e o quadro em si."""
+    return render_template("boards.html", ready=BOARDS_DB.exists())
+
+
+def board(kind, board_id):
+    lg = "pt" if lang() == "pt-BR" else "en"
+    if kind == "continent" and board_id in boards.CONTINENTS:
+        return boards.continent(str(BOARDS_DB), str(GEO_DB), board_id, lg)
+    if kind == "country":
+        b = boards.country(str(BOARDS_DB), str(GEO_DB), board_id, lg)
+        slug = boards.continent_of(str(BOARDS_DB), board_id)
+        return b and {**b, "parent": slug and {"id": slug, "title": boards.CONTINENTS[slug][lg]}}
+    if kind == "state":  # só na instalação completa (contornos de cidade do Overture)
+        b = boards.state(str(BOARDS_DB), str(GEO_DB), board_id, lg)
+        if b and b.get("country"):
+            slug = boards.continent_of(str(BOARDS_DB), b["country"]["id"])
+            b = {**b, "parent": slug and {"id": slug, "title": boards.CONTINENTS[slug][lg]}}
+        return b
+    return None
+
+
+@app.get("/api/boards")
+def boards_index():
+    """Os quadros de continente, com quantos países de cada um."""
+    if not BOARDS_DB.exists():
+        abort(404)
+    out = []
+    for slug in boards.CONTINENTS:
+        b = board("continent", slug)
+        out.append({"id": slug, "title": b["title"], "members": [m["id"] for m in b["members"]] + [o["id"] for o in b["off"]],
+                    "d": [m["d"] for m in b["members"]]})
+    return jsonify(out)
+
+
+@app.get("/api/boards/<kind>/<board_id>")
+def board_api(kind, board_id):
+    if not BOARDS_DB.exists():
+        abort(404)
+    b = board(kind, board_id)
+    if b is None:
+        abort(404)
+    return jsonify({**b, "canvas": boards.CANVAS})
+
+
 def settings():
     """Configurações da instância (tabela settings). Ver prefs() e a página
-    /config. Vista inicial do mapa: start_view = country (cidades visitadas em
+    /settings. Vista inicial do mapa: start_view = country (cidades visitadas em
     home_country) | all | last (onde parou, por aparelho) | fixed (start_fixed
     = "lon,lat,zoom"); sem start_view, country se houver home_country, senão all."""
     return {r["key"]: r["value"] for r in db().execute("SELECT key, value FROM settings")}
@@ -519,26 +568,26 @@ def profile_photo():
 
 
 # ------------------------------------------------------------------ perfis
-# Tela "quem está usando?" (/perfis): escolher grava o cookie neste aparelho.
+# Tela "quem está usando?" (/profiles): escolher grava o cookie neste aparelho.
 # Perfil novo passa pelo assistente sem a parte dos dados do mapa.
 def use(resp, p):
     resp.set_cookie(profiles.COOKIE, p.id, max_age=10 * 365 * 86400, samesite="Lax")
     return resp
 
 
-@app.get("/perfis")
+@app.get("/profiles")
 def profiles_page():
     chosen = profiles.get(request.cookies.get(profiles.COOKIE))
-    return render_template("perfis.html", people=[p.info() for p in profiles.list_all()],
+    return render_template("profiles.html", people=[p.info() for p in profiles.list_all()],
                            chosen=chosen and chosen.id, can_add=installed())
 
 
-@app.get("/perfis/<pid>/usar")
+@app.get("/profiles/<pid>/use")
 def use_profile(pid):
     return use(redirect("/"), profiles.get(pid) or abort(404))
 
 
-@app.get("/perfis/<pid>/foto.jpg")
+@app.get("/profiles/<pid>/photo.jpg")
 def profile_photo_of(pid):
     p = profiles.get(pid) or abort(404)
     if not p.photo.exists():
@@ -546,7 +595,7 @@ def profile_photo_of(pid):
     return send_file(p.photo, mimetype="image/jpeg", max_age=30 * 86400)
 
 
-@app.post("/perfis/novo")
+@app.post("/profiles/new")
 def new_profile():
     if not installed():
         abort(409, "instalação em andamento")
@@ -824,18 +873,13 @@ def import_profile():
     return jsonify(ok=True, imported=totals([prof().db]))
 
 
-@app.get("/perfil")
-def perfil():
-    return render_template("perfil.html")
+@app.get("/profile")
+def profile_page():
+    return render_template("profile.html")
 
 
-@app.get("/stats")
-def stats():
-    return redirect("/perfil")  # aba antiga
-
-
-@app.get("/config")
-def config():
+@app.get("/settings")
+def settings_page():
     # países visitados, para o "cidades visitadas em …" da vista inicial
     countries = db().execute(f"""SELECT co.id, co.name FROM ({VISITED_COUNTRIES_SQL}) v
                                  JOIN countries co ON co.id = v.id ORDER BY co.name""").fetchall()
@@ -844,7 +888,7 @@ def config():
     # geodata.json; aí a data é a do desenho do mapa (o geo.db pode ter sido
     # atualizado depois, sem remontar)
     built = installer.manifest().get("built_at") or dt.datetime.fromtimestamp(TILES.stat().st_mtime).isoformat()
-    return render_template("config.html", settings=settings(), countries=countries, geo_v=geo_v,
+    return render_template("settings.html", settings=settings(), countries=countries, geo_v=geo_v,
                            geodata={"mode": installer.mode()} | installer.manifest() | {"built_at": built},
                            version=version.VERSION, released=version.RELEASED)
 

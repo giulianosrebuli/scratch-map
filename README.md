@@ -67,7 +67,7 @@ systemd de usuário. Acesso pela rede de casa ou por VPN (ex.: Tailscale).
   estado/país, a gaveta lista também as cidades e aeroportos perto de onde
   você tocou, já com a bandeira para marcar (é por aí que se marca aeroporto,
   estado ou país direto).
-- **Perfis** (`/perfis`): cada pessoa da casa com suas visitas, fotos e
+- **Perfis** (`/profiles`): cada pessoa da casa com suas visitas, fotos e
   configurações, sem senha (confia em quem está na rede, como o resto do
   app). Com um perfil só, nada muda: ele é usado direto. Com mais de um, cada
   aparelho pergunta "quem está usando?" uma vez e lembra (cookie); trocar fica
@@ -78,7 +78,35 @@ systemd de usuário. Acesso pela rede de casa ou por VPN (ex.: Tailscale).
   com os dados dele) e apagar (não com o único perfil; só move a pasta para
   `data/profiles-removed/`). O que o navegador guarda (vista "onde parei",
   camadas, ordem do mural) também é por perfil.
-- **Perfil** (`/perfil`; o antigo `/stats` redireciona): no topo, nome e foto
+- **Quadros** (`/boards`): o mapa de raspar no estilo dos pôsteres, estático
+  e só de leitura (marcar e desmarcar é no mapa). Sempre paisagem 3:2, fundo
+  escuro, moldura com filetes e cantoneiras douradas; título, contagem
+  ("10 de 27") e a lista no alto à esquerda, o mapa no resto (ou, quando o
+  mapa é largo, embaixo do título com a lista embaixo dele). Ainda não
+  visitado: película dourada com textura de papel metálico amassado;
+  visitado: prata clara, com a mesma textura. Três níveis:
+  `/boards/continent/<slug>` (a América em três: `north-america`,
+  `central-america`, `south-america`; e `europe`, `africa`, `asia`,
+  `oceania`) com os países, `/boards/country/<id>` com os estados e
+  `/boards/state/<id>` com as cidades (só na instalação completa: os
+  contornos de cidade vêm das áreas do Overture). Tocar numa porção leva ao
+  quadro de dentro ou ao lugar no mapa.
+  - **Nomes**: no mapa, a sigla em caixa alta (SP, BRA), deitada e inteira
+    dentro da porção; não cabendo, fora, com um traço estilo trilha de placa
+    de circuito (reto na porção e no nome, transições a 45°, sem cruzar). No
+    quadro de estado, o nome da cidade por extenso, pequeno, só dentro. A
+    lista tem o nome por extenso; no continente, o ícone vira a bandeira
+    quando o país foi raspado; no estado, só as cidades visitadas.
+  - **Lupa**: as regiões apertadas (Benelux e Alpes, Bálcãs, África
+    Ocidental, Levante e Golfo) ganham um recorte ampliado num lugar livre do
+    mapa, ligado à origem por uma linha tracejada.
+  - **Exportar imagem**: PNG 3000 × 2000, igual ao da tela.
+  - Os contornos vêm de `geodata/boards.db` (`scripts/build_boards.py`, ~3
+    min, 57 MB, a partir da montagem); cada quadro é calculado na primeira
+    vez que é aberto (~1 s; a América do Norte, ~10 s) e guardado em
+    `geodata/boards-cache/`. A textura é `static/textures/foil.png`
+    (`scripts/foil_texture.py`).
+- **Perfil** (`/profile`): no topo, nome e foto
   de perfil, editáveis ali mesmo (tocar na foto troca; a foto vira um
   quadrado de 512 px em `profile.jpg`, na pasta do perfil). Ao lado, os
   botões de trocar de perfil e de configurações. Abaixo, o álbum de bandeiras.
@@ -86,10 +114,8 @@ systemd de usuário. Acesso pela rede de casa ou por VPN (ex.: Tailscale).
   círculos com a bandeira (visitados em cor, os outros bem apagados; a lista
   dos não visitados começa dobrada, com "Ver mais"). Tocar
   num país mostra os estados; num estado, as cidades; numa cidade, abre no
-  mapa (`/perfil#BR`, `/perfil#BR/BR-SP`). Estado/cidade sem bandeira mostra a
-  sigla. No fim, as listas de aeroportos e monumentos. Entre os totais e os
-  países, **Por ano**: um ano por linha com quantos lugares de cada tipo; tocar
-  abre os lugares daquele ano, mês a mês (`/perfil#2024`).
+  mapa (`/profile#BR`, `/profile#BR/BR-SP`). Estado/cidade sem bandeira mostra a
+  sigla. No fim, as listas de aeroportos e monumentos.
 - **Data da visita**: na gaveta do lugar, **Quando** guarda ano e mês de cada
   visita (pode ter várias; o ano vai até o atual). O mês é opcional: para
   lugar onde morou, ou viagem de que só lembra o ano, fica só o ano (que
@@ -156,7 +182,7 @@ systemd de usuário. Acesso pela rede de casa ou por VPN (ex.: Tailscale).
     monumento (as fotos vão para o trash). Rascunho abandonado (fechou a página
     no meio do formulário) é apagado no próximo início do serviço, depois de
     um dia.
-- **Configurações** (`/config`, engrenagem no cabeçalho do Perfil):
+- **Configurações** (`/settings`, engrenagem no cabeçalho do Perfil):
   - **Aparência**: idioma; tema claro, escuro ou automático (segue o sistema;
     no escuro, as fotos impressas continuam papel branco); cores do mapa
     (água, terra, país, estado, cidade, aeroporto, monumento), com prévia ao
@@ -227,9 +253,9 @@ scratch-map/
 ├── scripts/migrate_ids.py    # converte visitas para ids novos de estado/país
 ├── templates/index.html      # mapa
 ├── templates/mural.html      # mural de fotos
-├── templates/perfil.html     # perfil (nome, foto) + álbum de bandeiras
-├── templates/perfis.html     # "quem está usando?" (escolher e adicionar perfil)
-├── templates/config.html     # configurações
+├── templates/profile.html    # perfil (nome, foto) + álbum de bandeiras
+├── templates/profiles.html   # "quem está usando?" (escolher e adicionar perfil)
+├── templates/settings.html   # configurações
 ├── templates/setup.html      # assistente de primeira execução
 ├── templates/_navbar.html    # barra de menu na base, comum às telas
 ├── templates/_head.html      # <head> comum: CSS, cores escolhidas, ícone e PWA
@@ -615,8 +641,10 @@ exposta na internet. Ainda não há versão estável das rotas.
 | GET | `/manifest.webmanifest`, `/sw.js`, `/offline` | app instalável (PWA) |
 | GET | `/api/docs`, `/api/openapi.yaml` | documentação da API |
 | DELETE | `/api/profile` | apaga o perfil em uso (move para `data/profiles-removed/`; não o único) |
-| GET | `/perfis` | "quem está usando?"; `/perfis/<id>/usar` escolhe (cookie `perfil`), `/perfis/<id>/foto.jpg` |
-| POST | `/perfis/novo` | cria um perfil e abre o assistente para ele |
+| GET | `/profiles` | "quem está usando?"; `/profiles/<id>/use` escolhe (cookie `perfil`), `/profiles/<id>/photo.jpg` |
+| POST | `/profiles/new` | cria um perfil e abre o assistente para ele |
+| GET | `/api/boards` | quadros: os continentes, com os países de cada um |
+| GET | `/api/boards/<continent\|country\|state>/<id>` | um quadro já desenhado (porções em SVG, nomes, traços, lupas, lista) |
 | GET | `/api/stats` | álbum: países com bandeira (`visited`) e totais por tipo |
 | GET | `/api/stats/country/<id>` | estados do país, com cidades visitadas em cada |
 | GET | `/api/stats/state/<id>` | cidades do estado (visitadas, depois por população) |

@@ -146,7 +146,7 @@
     if (!confirm(t('Apagar este perfil? As visitas, os monumentos, as fotos e as configurações dele saem do app.'))) return;
     try {
       await api('/api/profile', { method: 'DELETE' });
-      location.href = '/perfis';
+      location.href = '/profiles';
     } catch (e) {
       alert(t('Não deu para apagar: {erro}', { erro: e.message }));
     }

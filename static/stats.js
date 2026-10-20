@@ -4,7 +4,7 @@
    enquanto), o círculo mostra a sigla. Aeroportos e landmarks ficam em lista
    no fim da página inicial. */
 (() => {
-  const { $, esc, api, el, fmtMonth, t } = window.SM;
+  const { $, esc, api, el, t } = window.SM;
   const box = $('#visited');
   const MINOR = new Set(['de', 'do', 'da', 'dos', 'das', 'e', 'del', 'la', 'los', 'las', 'el', 'of', 'the']);
 
@@ -70,7 +70,7 @@
 
   // ------------------------------------------------------------------ países
   async function countries() {
-    const [d, visited, years] = await Promise.all([api('/api/stats'), api('/api/visited'), api('/api/years')]);
+    const [d, visited] = await Promise.all([api('/api/stats'), api('/api/visited')]);
     const tot = d.totals;
     box.append(el(`<div class="tiles">
       <div class="tile"><b>${tot.country}<small>/${d.countries_total}</small></b><span><i class="dot country"></i>${t('Países')}</span></div>
@@ -79,7 +79,6 @@
       <div class="tile"><b>${tot.airport}</b><span><i class="dot airport"></i>${t('Aeroportos')}</span></div>
       <div class="tile"><b>${tot.landmark}</b><span><i class="dot landmark"></i>${t('Monumentos')}</span></div>
     </div>`));
-    yearList(years);
     const go = (c) => () => { location.hash = c.id; };
     section(t('Países visitados'), d.countries.filter((c) => c.visited), (c) => disc('country', c, { onClick: go(c) }));
     section(t('Ainda não'), d.countries.filter((c) => !c.visited), (c) => disc('country', c, { onClick: go(c) }), { fold: true });
@@ -101,43 +100,6 @@
       ul.append(li);
     }
     box.append(ul);
-  }
-
-  // ------------------------------------------------------------------ anos (datas de visita)
-  const KIND_N = {
-    country: ['{n} país', '{n} países'], state: ['{n} estado', '{n} estados'], city: ['{n} cidade', '{n} cidades'],
-    airport: ['{n} aeroporto', '{n} aeroportos'], landmark: ['{n} monumento', '{n} monumentos'],
-  };
-  const countsText = (c) => Object.keys(KIND_N).filter((k) => c[k]).map((k) => plural(c[k], ...KIND_N[k])).join(' · ');
-
-  function yearList(years) {
-    if (!years.length) return;
-    box.append(el(`<p class="group-title">${t('Por ano')}</p>`));
-    const ul = el('<ul class="list years"></ul>');
-    for (const y of years) {
-      const li = el(`<li><b class="year">${y.year}</b><div class="name">${esc(countsText(y.counts))}</div><span class="meta">›</span></li>`);
-      li.addEventListener('click', () => { location.hash = y.year; });
-      ul.append(li);
-    }
-    box.append(ul);
-  }
-
-  async function year(y) {
-    const d = (await api('/api/years')).find((x) => x.year === y);
-    box.append(crumbs([[t('Países'), ''], [y, null]]));
-    if (!d) return box.append(el(`<p class="empty">${t('Nenhuma visita com data em {ano}.', { ano: esc(y) })}</p>`));
-    box.append(el(`<p class="hint">${esc(countsText(d.counts))}</p>`));
-    for (const m of d.months) {
-      const title = m.month.length === 4 ? t('Sem mês') : fmtMonth(m.month);  // período: "2010 – 2018"
-      box.append(el(`<p class="group-title">${title}</p>`));
-      const ul = el('<ul class="list"></ul>');
-      for (const p of m.places) {
-        const li = el(`<li><i class="dot ${p.kind}"></i><div class="name">${esc(p.name)}${p.country ? `<small>${esc(p.country)}</small>` : ''}</div></li>`);
-        li.addEventListener('click', () => { location.href = `/?open=${p.kind}:${encodeURIComponent(p.id)}`; });
-        ul.append(li);
-      }
-      box.append(ul);
-    }
   }
 
   // ------------------------------------------------------------------ estados de um país
@@ -171,7 +133,7 @@
     if (!d.cities.length) box.append(el(`<p class="empty">${t('Sem cidades no mapa para este estado.')}</p>`));
   }
 
-  // ------------------------------------------------------------------ rotas (#BR, #BR/BR-SP, #2024)
+  // ------------------------------------------------------------------ rotas (#BR, #BR/BR-SP)
   let seq = 0;
   async function route() {
     const n = ++seq;
@@ -179,7 +141,7 @@
     box.innerHTML = '';
     box.classList.add('loading');
     try {
-      await (sid ? state(cid, sid) : /^\d{4}$/.test(cid || '') ? year(cid) : cid ? country(cid) : countries());
+      await (sid ? state(cid, sid) : cid ? country(cid) : countries());
     } catch (e) {
       if (n === seq) box.append(el(`<p class="empty">${t('Erro ao carregar: {erro}', { erro: esc(e.message) })}</p>`));
     } finally {

@@ -15,8 +15,8 @@
     <ul class="people">
       {% for p in people %}
       <li>
-        <a class="person" href="/perfis/{{ p.id }}/usar" {{ 'aria-current=true' if p.id == chosen }}>
-          <span class="avatar">{% if p.photo %}<img src="/perfis/{{ p.id }}/foto.jpg?v={{ p.photo }}" alt="">{% else %}
+        <a class="person" href="/profiles/{{ p.id }}/use" {{ 'aria-current=true' if p.id == chosen }}>
+          <span class="avatar">{% if p.photo %}<img src="/profiles/{{ p.id }}/photo.jpg?v={{ p.photo }}" alt="">{% else %}
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>{% endif %}</span>
           <b>{{ p.name or _('Sem nome') }}</b>
         </a>
@@ -24,7 +24,7 @@
       {% endfor %}
       {% if can_add %}
       <li>
-        <form method="post" action="/perfis/novo">
+        <form method="post" action="/profiles/new">
           <button class="person add">
             <span class="avatar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span>
             <b>{{ _('Adicionar perfil') }}</b>
@@ -34,7 +34,7 @@
       {% endif %}
     </ul>
     <p class="hint">{{ _('Cada perfil tem suas próprias visitas, fotos e configurações. Este aparelho lembra a escolha.') }}</p>
-    {% if chosen %}<div class="setup-nav"><a class="ghost" href="/perfil">‹ {{ _('Voltar') }}</a></div>{% endif %}
+    {% if chosen %}<div class="setup-nav"><a class="ghost" href="/profile">‹ {{ _('Voltar') }}</a></div>{% endif %}
    </div>
   </main>
   <script src="{{ url_for('static', filename='vendor/maplibre-gl.js') }}"></script>
