@@ -11,6 +11,8 @@
   const NS = 'http://www.w3.org/2000/svg';
   const [CW, CH] = [1500, 1000];
   const LIST = { x: 100, y: 290, bottom: 900 };  // área da lista (boards.LIST)
+  // nos quadros, todo nome em caixa alta (boards.CAPS mede a largura assim)
+  const up = (s) => s.toLocaleUpperCase(document.documentElement.lang || 'pt-BR');
   const reduced = () => window.PREFS?.skip_animations || matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   // cor de cada porção raspada: fixa por id (o mesmo país sempre com a mesma cor)
@@ -114,7 +116,7 @@
     const listSVG = all.map((m, i) => {
       const col = Math.floor(i / L.rows), row = i % L.rows;
       const x = LIST.x + col * L.col_w, y = LIST.y + row * L.row_h + L.size * 0.8;
-      const name = m.name.length > L.cut ? `${m.name.slice(0, L.cut - 1)}…` : m.name;
+      const name = up(m.name.length > L.cut ? `${m.name.slice(0, L.cut - 1)}…` : m.name);
       return `<g class="item" data-id="${esc(m.id)}"><title>${esc(m.name)}</title>
         <rect class="swatch" x="${x}" y="${y - L.size * 0.62}" width="${L.size * 1.15}" height="${L.size * 0.62}" rx="2"/>
         <text x="${x + L.size * 1.5}" y="${y}" font-size="${L.size}">${esc(name)}${m.off ? ' *' : ''}</text></g>`;
@@ -134,13 +136,13 @@
         <g class="foil"><path class="base" d="${m.d}"/><path class="tex" d="${m.d}"/></g></g>`).join('')}</g>
       <g class="callouts">${b.members.filter((m) => m.callout).map((m) => {
         const c = m.callout, left = c.side === 'left';
-        return `<g class="callout" data-id="${esc(m.id)}"><line x1="${c.tx}" y1="${c.ty}" x2="${c.x + (left ? 4 : -4)}" y2="${c.y}"/>
+        return `<g class="callout" data-id="${esc(m.id)}"><polyline points="${c.path}"/>
           <circle cx="${c.tx}" cy="${c.ty}" r="2.2"/>
-          <text x="${c.x}" y="${c.y}" font-size="${c.size}" text-anchor="${left ? 'end' : 'start'}" dominant-baseline="middle">${esc(m.name)}</text></g>`;
+          <text x="${c.x}" y="${c.y}" font-size="${c.size}" text-anchor="${left ? 'end' : 'start'}" dominant-baseline="middle">${esc(up(m.name))}</text></g>`;
       }).join('')}</g>
       <g class="labels">${b.members.filter((m) => m.label).map((m) => {
         const l = m.label, lh = l.size * 1.15, y0 = l.y - ((l.lines.length - 1) * lh) / 2;
-        return `<text class="label" data-id="${esc(m.id)}" x="${l.x}" font-size="${l.size}" text-anchor="middle">${l.lines.map((s, i) => `<tspan x="${l.x}" y="${y0 + i * lh}" dominant-baseline="middle">${esc(s)}</tspan>`).join('')}</text>`;
+        return `<text class="label" data-id="${esc(m.id)}" x="${l.x}" font-size="${l.size}" text-anchor="middle"${l.rotate ? ` transform="rotate(${l.rotate} ${l.x} ${l.y})"` : ''}>${l.lines.map((s, i) => `<tspan x="${l.x}" y="${y0 + i * lh}" dominant-baseline="middle">${esc(up(s))}</tspan>`).join('')}</text>`;
       }).join('')}</g>`;
     root.append(el('<div class="board-wrap"></div>'));
     $('.board-wrap', root).append(svg);
@@ -165,7 +167,7 @@
     function actions(m) {
       $('.board-actions')?.remove();
       const item = visited[mk]?.get(String(m.id));
-      const box = el(`<div class="board-actions glass"><b>${esc(m.name)}</b><div class="row"></div></div>`);
+      const box = el(`<div class="board-actions glass"><b>${esc(up(m.name))}</b><div class="row"></div></div>`);
       const row = $('.row', box);
       if (!item) row.append(button(t('Raspar'), 'flag', async () => { await scratch(m); box.remove(); }));
       else if (item.explicit) row.append(button(t('Desmarcar'), 'secondary', async () => { await unscratch(m, item); box.remove(); }));

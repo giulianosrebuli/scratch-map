@@ -947,10 +947,10 @@ body.no-intro #setup-map, body.no-intro .setup, body.no-intro .setup-card { tran
 .board-svg .member .foil .tex { fill: url(#paper); stroke: none; pointer-events: none; mix-blend-mode: overlay; }
 .board-svg .member.on .foil { display: none; }
 .board-svg .member.on .paint { stroke: rgba(255, 255, 255, .75); }
-.board-svg text { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; cursor: pointer; }
+.board-svg text { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; letter-spacing: .03em; cursor: pointer; }
 .board-svg .label { font-weight: 650; fill: #2e2208; paint-order: stroke; stroke: rgba(255, 244, 210, .5); stroke-width: 2.5px; stroke-linejoin: round; }
 .board-svg .label.on { fill: #fff; stroke: rgba(0, 0, 0, .45); }
-.board-svg .callout line { stroke: #b9a774; stroke-width: 1; }
+.board-svg .callout polyline { fill: none; stroke: #b9a774; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
 .board-svg .callout circle { fill: #e8c766; }
 .board-svg .callout text { fill: #cbbd96; }
 .board-svg .callout.on text { fill: #fff; font-weight: 700; }

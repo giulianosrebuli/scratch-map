@@ -11,13 +11,15 @@ Os quadros não mudam (só com uma nova montagem): cada um é calculado uma vez
 por idioma e guardado em memória.
 """
 import math
+
+import numpy as np
 import sqlite3
 from functools import lru_cache
 from pathlib import Path
 
 from shapely import box, clip_by_rect, from_wkb
 from shapely.ops import polylabel
-from shapely.geometry import MultiPolygon, Polygon
+from shapely.geometry import MultiPolygon, Point, Polygon
 from shapely.ops import transform
 
 # Todo quadro tem a mesma proporção (paisagem, 3:2) e o mesmo desenho: título
@@ -28,9 +30,11 @@ LIST = (100, 290, 900)      # lista: x, topo, fim
 MAP_Y = (95, 905)           # o mapa começa depois da lista e vai até MAP_X1
 MAP_X1 = 1410
 GUTTER = 135      # margem para os nomes com traço (só do lado que precisar)
-LABEL_SIZES = (21, 18, 15.5, 13)
+LABEL_SIZES = (21, 18, 15.5, 13, 11.5)
 CALLOUT_SIZE = 15
 CALLOUT_GAP = 19  # distância mínima entre nomes na margem
+CAPS = 0.68       # largura média de uma letra em caixa alta (× tamanho da letra)
+STUB = 12         # trecho reto do traço ao chegar no nome
 
 # Continentes (a América em três). bbox fixo [oeste, sul, leste, norte]; os
 # membros vêm do Natural Earth (continente/sub-região). O México fica na do
@@ -91,24 +95,42 @@ def main_bbox(geom, near=3):
     return (bx[0] - m, bx[1] - m, bx[2] + m, bx[3] + m)
 
 
-def fit_text(poly, cx, cy, name, taken, sizes=LABEL_SIZES):
-    """Tamanho e linhas que cabem dentro do polígono, centrados em (cx, cy),
-    sem encostar nos nomes já postos (`taken`, retângulos)."""
+def candidates(poly, pole, k=24):
+    """Onde tentar o nome: o ponto mais longe da borda e, depois, os pontos de
+    uma grade dentro do polígono, dos mais longe da borda para os mais perto
+    (estado comprido, como o Tocantins, cabe mais em cima ou embaixo)."""
+    x0, y0, x1, y1 = poly.bounds
+    step = max(min(x1 - x0, y1 - y0) / 8, 3)
+    pts = [Point(x, y) for x in np.arange(x0 + step / 2, x1, step) for y in np.arange(y0 + step / 2, y1, step)]
+    inside = sorted((p for p in pts if poly.contains(p)), key=lambda p: -poly.exterior.distance(p))
+    return [(pole.x, pole.y)] + [(p.x, p.y) for p in inside[:k]]
+
+
+def fit_text(poly, points, name, taken, sizes=LABEL_SIZES):
+    """(x, y, tamanho, linhas) do nome dentro do polígono, no primeiro ponto
+    em que cabe (a letra maior primeiro), sem encostar nos nomes já postos
+    (`taken`, retângulos)."""
     words = name.split()
     options = [[name]]
     if len(words) > 1:  # quebra em duas linhas no espaço mais perto do meio
         best = min(range(1, len(words)), key=lambda i: abs(len(" ".join(words[:i])) - len(" ".join(words[i:]))))
         options.append([" ".join(words[:best]), " ".join(words[best:])])
     inner = poly.buffer(-1.5)
-    for size in sizes:
-        for lines in options:
-            w = max(len(t) for t in lines) * size * 0.58
-            h = len(lines) * size * 1.15
-            r = box(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)
-            # como nos pôsteres: pode passar um pouco da borda (Itália, Noruega)
-            if inner.intersection(r).area >= 0.75 * r.area and not any(r.intersects(o) for o in taken):
-                taken.append(r.buffer(2))
-                return size, lines
+    # deitado primeiro; em pé (girado 90°) só se não couber deitado de jeito
+    # nenhum: porção comprida e estreita, como o Tocantins
+    for vertical in (False, True):
+        for size in sizes:
+            for cx, cy in points:
+                for lines in options:
+                    w = max(len(t) for t in lines) * size * CAPS
+                    h = len(lines) * size * 1.15
+                    if vertical:
+                        w, h = h, w
+                    r = box(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)
+                    # como nos pôsteres: pode passar um pouco da borda (Itália, Noruega)
+                    if inner.intersection(r).area >= 0.75 * r.area and not any(r.intersects(o) for o in taken):
+                        taken.append(r.buffer(2))
+                        return cx, cy, size, lines, vertical
     return None
 
 
@@ -121,14 +143,39 @@ def list_layout(names):
         row_h = size * 1.6
         rows = int((bottom - top) // row_h)
         cols = -(-len(names) // rows)
-        col_w = size * 1.5 + longest * size * 0.55 + 22
+        col_w = size * 1.5 + longest * size * CAPS + 22
         if cols <= 5 and cols * col_w <= 640:
             return {"size": size, "row_h": row_h, "rows": rows, "col_w": col_w, "cut": None, "width": max(cols * col_w, 520)}
     size, row_h = 11, 11 * 1.6
     rows = int((bottom - top) // row_h)
     col_w = 640 / -(-len(names) // rows)
     return {"size": size, "row_h": row_h, "rows": rows, "col_w": col_w,
-            "cut": max(4, int((col_w - 22 - size * 1.5) // (size * 0.55))), "width": 640}
+            "cut": max(4, int((col_w - 22 - size * 1.5) // (size * CAPS))), "width": 640}
+
+
+def trace(co, side):
+    """Traço do nome até a porção, como trilha de placa de circuito: sai reto
+    (horizontal) da porção, faz a transição a 45° e chega reto ao nome.
+
+    As diagonais terminam todas na mesma coluna (a STUB do nome): como os
+    nomes ficam na mesma ordem vertical das porções, duas trilhas nunca se
+    cruzam e as diagonais paralelas ficam separadas pelo espaço entre nomes.
+    Sem espaço na horizontal para a diagonal inteira, o resto vira vertical."""
+    d = 1 if side == "right" else -1
+    tx, ty, y = co["tx"], co["ty"], co["y"]
+    end = co["x"] - d * (4 + STUB)          # onde a diagonal termina
+    dy = y - ty
+    start = end - d * abs(dy)               # onde a diagonal começa
+    if (start - tx) * d < 6:                # não cabe: diagonal mais curta + vertical
+        start = tx + d * 6
+    run = abs(end - start)
+    mid_y = ty + (run if dy > 0 else -run) if abs(dy) > run else y
+    pts = [(tx, ty), (start, ty), (end, mid_y), (end, y), (co["x"] - d * 4, y)]
+    out = []
+    for p in pts:  # sem pontos repetidos (trechos de tamanho zero)
+        if not out or (abs(p[0] - out[-1][0]) > 0.05 or abs(p[1] - out[-1][1]) > 0.05):
+            out.append(p)
+    return " ".join(f"{x:.1f},{y:.1f}" for x, y in out)
 
 
 def place_callouts(items, x, top, bottom):
@@ -212,9 +259,10 @@ def build(bbox, members, names):
             main = max(parts, key=lambda p: p.area)
             pole = polylabel(main, tolerance=0.5)
             m = {"id": mid, "name": name, "d": svg_path(g)}
-            fit = fit_text(main, pole.x, pole.y, name, taken)
+            fit = fit_text(main, candidates(main, pole), name, taken)
             if fit:
-                m["label"] = {"x": round(pole.x, 1), "y": round(pole.y, 1), "size": fit[0], "lines": fit[1]}
+                m["label"] = {"x": round(fit[0], 1), "y": round(fit[1], 1), "size": fit[2], "lines": fit[3],
+                              "rotate": -90 if fit[4] else 0}
             else:
                 co = {"m": m, "tx": round(pole.x, 1), "ty": round(pole.y, 1)}
                 (left if pole.x < ox + mw / 2 else right).append(co)
@@ -230,8 +278,8 @@ def build(bbox, members, names):
         place_callouts(right, ax1 + 10, MAP[1] + 6, MAP[3])
         for side, items in (("left", left), ("right", right)):
             for co in items:
-                co["m"]["callout"] = {"side": side, "x": co["x"], "y": round(co["y"], 1), "tx": co["tx"],
-                                      "ty": co["ty"], "size": CALLOUT_SIZE}
+                co["m"]["callout"] = {"side": side, "x": co["x"], "y": round(co["y"], 1), "size": CALLOUT_SIZE,
+                                      "tx": co["tx"], "ty": co["ty"], "path": trace(co, side)}
     return {"members": out, "list": lst}
 
 
