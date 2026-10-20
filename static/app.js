@@ -1,6 +1,6 @@
 /* scratch map — frontend (vanilla JS + MapLibre, sem build). */
 (() => {
-  const { $, esc, api, json, fmtDate, store, el, print, lightbox, t } = window.SM;
+  const { $, esc, api, json, fmtDate, fmtMonth, store, el, print, lightbox, t, LANG } = window.SM;
   const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
   const C = {
     water: css('--water'), land: css('--land'), border: css('--border'),
@@ -692,11 +692,12 @@
     paintVisited();
   }
 
-  async function toggleVisit(kind, id, on, hasPhotos = 0) {
+  async function toggleVisit(kind, id, on, hasPhotos = 0, hasDates = 0) {
     if (on) {
       await api('/api/visits', json('POST', { kind, id }));
     } else {
       if (hasPhotos && !confirm(t('Desmarcar também remove {n} foto(s) deste lugar. Continuar?', { n: hasPhotos }))) return false;
+      if (!hasPhotos && hasDates && !confirm(t('Desmarcar também apaga as datas de visita deste lugar. Continuar?'))) return false;
       await api(`/api/visits/${kind}/${encodeURIComponent(id)}`, { method: 'DELETE' });
     }
     await loadVisited();
@@ -989,6 +990,7 @@
     const title = p.kind === 'airport' ? `${p.id} — ${p.name}` : p.name;
     const status = p.kind === 'landmark' ? '' : p.visited ? t('Visitado ✓') : t('Ainda não visitado');
     const all = [...p.photos, ...p.groups.flatMap((g) => g.photos)];
+    const last = lastVisit(p);
 
     // Com foto, a mais recente horizontal (vertical só se não houver; na cidade
     // entram as dos landmarks/aeroportos, no estado/país as das cidades) vira o
@@ -996,7 +998,7 @@
     const head = sheetHead(`
       <div class="kind-label"><i class="dot ${p.kind}"></i>${KIND_LABEL[p.kind]}</div>
       <h2>${esc(title)}</h2>
-      ${crumbs ? `<div class="crumbs">${crumbs}</div>` : ''}`, { onPhoto: all.length > 0 });
+      ${crumbs || last ? `<div class="crumbs">${[crumbs, last && `<span class="last-visit">${esc(last)}</span>`].filter(Boolean).join(' · ')}</div>` : ''}`, { onPhoto: all.length > 0 });
     if (all.length) {
       const cover = all.find((ph) => ph.width > ph.height) || all[0];
       const hero = el(`<div class="hero" data-drag><img src="${cover.url}" alt=""><div class="hero-fade"></div></div>`);
@@ -1021,6 +1023,7 @@
       <input type="file" accept="image/*,.heic,.heif" multiple hidden>
     </div>`);
     body.append(actions);
+    if (p.visited || p.kind === 'landmark') body.append(visitDates(p, () => reopen()));
 
     // Clicou num ponto do mapa: oferece cidades/aeroportos ali perto para marcar.
     if (point && (p.kind === 'state' || p.kind === 'country')) {
@@ -1071,7 +1074,7 @@
     });
     actions.querySelector('[data-act="unmark"]')?.addEventListener('click', async () => {
       if (!p.explicit) return toast(IMPLIED_MSG[p.kind]);
-      if (await toggleVisit(p.kind, p.id, false, p.photos.length) === false) return;
+      if (await toggleVisit(p.kind, p.id, false, p.photos.length, p.dates.length) === false) return;
       if (isVisited(p.kind, p.id)) toast(IMPLIED_MSG[p.kind]);  // ainda tem cidade marcada aqui
       reopen();
     });
@@ -1094,6 +1097,86 @@
       await uploadPhotos(p.kind, p.id, file.files);
       reopen();
     });
+  }
+
+  // Última visita, ao lado da hierarquia (aparece com a gaveta recolhida): a
+  // data (dele ou herdada) que termina mais tarde; período mostra inteiro.
+  function lastVisit(p) {
+    const end = (w) => { const e = w.split('/').pop(); return e.length === 4 ? `${e}-12` : e; };
+    const all = [...(p.dates ?? []), ...(p.inherited ?? []).map((d) => d.month)];
+    if (!all.length) return '';
+    const w = all.reduce((a, b) => (end(b) > end(a) ? b : a));
+    // "out. 2026" (pt) / "Oct 2026" (en): mais leve que o "OUT 2026" das etiquetas
+    return fmtMonth(w).replace(/\b([A-Z]{3}) /g, (_, m) => (LANG === 'en' ? `${m[0]}${m.slice(1).toLowerCase()} ` : `${m.toLowerCase()}. `));
+  }
+
+  // Quando: as visitas do lugar (mês e ano; pode ter várias), as que ele herda
+  // do que tem dentro (cidades de um estado etc.) e as sugeridas pelas fotos.
+  function visitDates(p, reopen) {
+    const box = el(`<div class="when"><p class="group-title">${t('Quando')}</p><div class="chips"></div></div>`);
+    const chips = $('.chips', box);
+    const url = `/api/place/${p.kind}/${encodeURIComponent(p.id)}/dates`;
+    for (const m of p.dates) {
+      const c = el(`<span class="chip">${fmtMonth(m)}<button aria-label="${esc(t('Remover'))}">×</button></span>`);
+      $('button', c).addEventListener('click', async () => {
+        await api(`${url}/${m}`, { method: 'DELETE' });
+        reopen();
+      });
+      chips.append(c);
+    }
+    for (const m of p.suggested) {
+      const c = el(`<button class="chip suggest" title="${esc(t('Pelas fotos'))}">+ ${fmtMonth(m)} <small>${t('pelas fotos')}</small></button>`);
+      c.addEventListener('click', async () => { await api(url, json('POST', { month: m })); reopen(); });
+      chips.append(c);
+    }
+    const add = el(`<button class="chip add">+ ${t('Adicionar data')}</button>`);
+    chips.append(add);
+    add.addEventListener('click', () => {
+      const now = new Date();
+      // mês opcional: lugar onde morou, ou viagem de que só lembra o ano
+      const months = [`<option value="">${t('Mês')}</option>`, ...Array.from({ length: 12 }, (_, i) => `<option value="${String(i + 1).padStart(2, '0')}">${fmtMonth(`2000-${i + 1}`).split(' ')[0]}</option>`)];
+      const years = Array.from({ length: now.getFullYear() - 1899 }, (_, i) => now.getFullYear() - i).map((y) => `<option>${y}</option>`);
+      // "até…" vira período (onde morou): 2010/2018, ISO 8601
+      const form = el(`<form class="date-form">
+        <span class="date-pick"><select name="m" aria-label="${esc(t('Mês'))}">${months.join('')}</select>
+        <select name="y" aria-label="${esc(t('Ano'))}">${years.join('')}</select></span>
+        <button type="button" class="chip add until">${t('até…')}</button>
+        <span class="date-pick" hidden>${t('até')} <select name="m2" aria-label="${esc(t('Mês'))}">${months.join('')}</select>
+        <select name="y2" aria-label="${esc(t('Ano'))}">${years.join('')}</select></span>
+        <button class="btn small">${t('Salvar')}</button>
+        <p class="hint error" hidden></p></form>`);
+      const until = $('.until', form);
+      until.addEventListener('click', () => {
+        until.hidden = true;  // não tirar do DOM (ver acima)
+        until.nextElementSibling.hidden = false;
+      });
+      const when = (m, y) => (m ? `${y}-${m}` : y);
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const start = when(form.m.value, form.y.value);
+        const end = until.hidden ? when(form.m2.value, form.y2.value) : null;
+        const err = $('.error', form);
+        const first = (w) => (w.length === 4 ? `${w}-01` : w);
+        const last = (w) => (w.length === 4 ? `${w}-12` : w);
+        if (end && first(end) <= last(start)) {  // mesma regra do servidor (valid_when)
+          err.textContent = t('O fim do período precisa ser depois do início.');
+          err.hidden = false;
+          return;
+        }
+        await api(url, json('POST', { month: end ? `${start}/${end}` : start }));
+        reopen();
+      });
+      add.hidden = true;  // não tirar do DOM: o toque fora da gaveta a recolhe (alvo solto conta como fora)
+      add.after(form);
+    });
+    if (p.inherited.length) {
+      const via = p.inherited.map((d) => `<span class="via"><b>${fmtMonth(d.month)}</b> ${d.places.map((x) => esc(x.name)).join(', ')}</span>`);
+      box.append(el(`<p class="hint inherited">${p.kind === 'city' ? t('Pelos monumentos:') : t('Pelo que tem dentro:')} ${via.join(' · ')}</p>`));
+    }
+    if (!p.dates.length && !p.inherited.length && !p.suggested.length) {
+      box.append(el(`<p class="hint">${t('Quando você esteve aqui? O ano basta (o mês é opcional); dá para pôr mais de uma visita, ou um período (onde morou).')}</p>`));
+    }
+    return box;
   }
 
   // ------------------------------------------------------------------ landmarks

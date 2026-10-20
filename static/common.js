@@ -26,6 +26,12 @@
     const [y, m, d] = iso.split('-');
     return `${d} ${MONTHS[+m - 1]} ${y}`;
   };
+  // data de visita: AAAA-MM, AAAA ou período início/fim (2010/2018)
+  const fmtMonth = (when) => {
+    if (when.includes('/')) return when.split('/').map(fmtMonth).join(' – ');
+    const [y, m] = when.split('-');
+    return m ? `${MONTHS[+m - 1]} ${y}` : y;
+  };
   const store = {
     // por perfil (o aparelho pode ser de mais de uma pessoa); o perfil 1 ainda
     // lê as chaves de antes dos perfis
@@ -133,7 +139,7 @@
   });
 
   window.SM = {
-    $, esc, api, json, fmtDate, store, el, print, t, LANG,
+    $, esc, api, json, fmtDate, fmtMonth, store, el, print, t, LANG,
     lightbox: { open, close, isOpen: () => !!st },
   };
 })();

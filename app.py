@@ -81,6 +81,15 @@ CREATE TABLE IF NOT EXISTS landmarks (
     draft INTEGER NOT NULL DEFAULT 1,  -- 1 enquanto o formulário de criação não foi salvo
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+-- Quando: ano (e mês, se quiser) de cada visita a um lugar (pode ter várias). Estado e país
+-- também herdam as datas do que tem dentro deles (place_dates).
+CREATE TABLE IF NOT EXISTS visit_dates (
+    kind TEXT NOT NULL,
+    ref_id TEXT NOT NULL,
+    month TEXT NOT NULL,         -- AAAA-MM ou AAAA; período: início/fim (ex. 2010/2018)
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (kind, ref_id, month)
+);
 """ + boundaries.SCHEMA + state_flags.SCHEMA
 
 
@@ -1329,7 +1338,134 @@ def place(kind, ref_id):
     via = implied_by(kind, ref_id)
     photos, groups = place_photos(kind, str(ref_id))
     return jsonify({**info, "kind": kind, "crumbs": crumbs, "explicit": explicit, "via": via,
-                    "visited": explicit or bool(via), "photos": photos, "groups": groups})
+                    "visited": explicit or bool(via), "photos": photos, "groups": groups,
+                    **place_dates(kind, str(ref_id), photos)})
+
+
+MONTH_RE = re.compile(r"^(\d{4})(-(0[1-9]|1[0-2]))?$")  # AAAA-MM ou só AAAA
+
+
+def date_range(when):
+    """Primeiro e último mês (AAAA-MM) de uma data de visita: AAAA-MM, AAAA
+    (o ano todo) ou um período início/fim (intervalo da ISO 8601, ex.
+    2010/2018 ou 2010-03/2018-06)."""
+    start, _, end = when.partition("/")
+    end = end or start
+    return (start if len(start) == 7 else f"{start}-01"), (end if len(end) == 7 else f"{end}-12")
+
+
+def valid_when(when):
+    parts = when.split("/")
+    if len(parts) > 2 or not all(MONTH_RE.match(p) for p in parts):
+        return False
+    lo, hi = date_range(when)
+    # período: o fim começa depois que o início termina (não 2015/2015 nem 2015/2015-06)
+    ordered = len(parts) == 1 or date_range(parts[1])[0] > date_range(parts[0])[1]
+    return "1900" <= lo[:4] and hi[:4] <= str(dt.date.today().year) and ordered
+DATED_SQL = """
+    SELECT d.kind, d.ref_id, d.month,
+           CASE d.kind WHEN 'airport' THEN a.id || ' — ' || a.name
+                       ELSE COALESCE(c.name, s.name, co.name, l.name) END AS name,
+           COALESCE(c.id, l.city_id) AS city_id,
+           COALESCE(c.state_id, lc.state_id, s.id) AS state_id,
+           COALESCE(c.country_id, lc.country_id, s.country_id, a.country_id, co.id) AS country_id
+      FROM visit_dates d
+      LEFT JOIN geo.cities c ON d.kind = 'city' AND c.id = d.ref_id
+      LEFT JOIN geo.states s ON d.kind = 'state' AND s.id = d.ref_id
+      LEFT JOIN countries co ON d.kind = 'country' AND co.id = d.ref_id
+      LEFT JOIN geo.airports a ON d.kind = 'airport' AND a.id = d.ref_id
+      LEFT JOIN landmarks l ON d.kind = 'landmark' AND l.id = d.ref_id
+      LEFT JOIN geo.cities lc ON lc.id = l.city_id
+     ORDER BY d.month"""
+
+
+def dated():
+    """Todas as datas de visita, cada uma com a cidade/estado/país em que está."""
+    return [dict(r) for r in db().execute(DATED_SQL)]
+
+
+def contains(kind, ref_id, r):
+    """O lugar (kind, ref_id) contém a data r (de outro lugar, dentro dele)?"""
+    if (r["kind"], r["ref_id"]) == (kind, ref_id):
+        return False
+    key = {"city": "city_id", "state": "state_id", "country": "country_id"}.get(kind)
+    return bool(key) and str(r[key]) == ref_id
+
+
+def place_dates(kind, ref_id, photos):
+    """Datas da gaveta: as do lugar, as herdadas (do que está dentro dele,
+    agrupadas por mês) e as sugeridas pelas fotos (meses sem visita)."""
+    rows = dated()
+    own = [r["month"] for r in rows if (r["kind"], r["ref_id"]) == (kind, ref_id)]
+    inherited = {}
+    for r in rows:
+        if contains(kind, ref_id, r):
+            inherited.setdefault(r["month"], []).append({"kind": r["kind"], "id": r["ref_id"], "name": r["name"]})
+    # o ano todo ou um período (morei lá) cobrem os meses deles
+    known = [date_range(w) for w in [*own, *inherited]]
+    suggested = sorted(m for m in {p["taken_on"][:7] for p in photos if p.get("taken_on")}
+                       if not any(lo <= m <= hi for lo, hi in known))
+    return {"dates": own, "inherited": [{"month": m, "places": inherited[m]} for m in sorted(inherited)],
+            "suggested": suggested}
+
+
+@app.post("/api/place/<kind>/<ref_id>/dates")
+def add_date(kind, ref_id):
+    """Acrescenta uma visita (ano, mês e ano, ou período). Marca o lugar, se ainda não estava."""
+    if kind not in PHOTO_KINDS:
+        abort(400)
+    month = str((request.get_json(force=True) or {}).get("month", ""))
+    if not valid_when(month):
+        abort(400)
+    place_info(kind, ref_id)  # 404 se não existir
+    db().execute("INSERT OR IGNORE INTO visit_dates (kind, ref_id, month) VALUES (?, ?, ?)", (kind, ref_id, month))
+    if kind in KINDS:
+        visit(kind, ref_id)
+    else:
+        db().commit()
+    return jsonify(ok=True)
+
+
+@app.delete("/api/place/<kind>/<ref_id>/dates/<path:month>")
+def remove_date(kind, ref_id, month):
+    con = db()
+    con.execute("DELETE FROM visit_dates WHERE kind = ? AND ref_id = ? AND month = ?", (kind, ref_id, month))
+    con.commit()
+    return jsonify(ok=True)
+
+
+@app.get("/api/years")
+def years():
+    """Visitas por ano (álbum do Perfil): quantos lugares de cada tipo (estado e
+    país contam pelo que tem data dentro deles) e, por mês, os lugares com data.
+    Um período entra em todos os anos dele."""
+    out = {}
+    for r in dated():
+        lo, hi = date_range(r["month"])
+        for year in range(int(lo[:4]), int(hi[:4]) + 1):
+            y = out.setdefault(str(year), {"sets": {k: set() for k in PHOTO_KINDS}, "months": {}})
+            y["sets"][r["kind"]].add(r["ref_id"])
+            if r["state_id"]:
+                y["sets"]["state"].add(r["state_id"])
+            if r["country_id"]:
+                y["sets"]["country"].add(r["country_id"])
+            y["months"].setdefault(r["month"], []).append(r)
+    names = {r["id"]: r["name"] for r in db().execute("SELECT id, name FROM countries")}
+    return jsonify([{
+        "year": year,
+        "counts": {k: len(v) for k, v in y["sets"].items()},
+        "months": [{"month": m, "places": [{"kind": r["kind"], "id": r["ref_id"], "name": r["name"],
+                                            "country": names.get(r["country_id"]) if r["kind"] != "country" else None}
+                                           for r in rows]}
+                   for m, rows in sorted(y["months"].items(), key=month_order)],
+    } for year, y in sorted(out.items(), reverse=True)])
+
+
+def month_order(item):
+    """Na página do ano: meses do mais recente ao mais antigo, depois o ano
+    sem mês, depois os períodos."""
+    when = item[0]
+    return ("/" in when, len(when) == 4, [-ord(c) for c in when])
 
 
 def place_photos(kind, ref_id):
@@ -1367,12 +1503,17 @@ def add_visit():
     if kind not in KINDS:
         abort(400)
     place_info(kind, ref_id)  # 404 se não existir
+    visit(kind, ref_id)
+    return jsonify(ok=True)
+
+
+def visit(kind, ref_id):
+    """Marca e grava; busca a bandeira do estado e o contorno da cidade."""
     mark(kind, ref_id)
     db().commit()
     fetch_state_flags()
     if kind == "city":  # ~1-3 s na primeira vez
         boundaries.fetch_and_store(prof().db, GEO_DB, ref_id, allow_nominatim=ext_on("ext_city_shape"))
-    return jsonify(ok=True)
 
 
 def trash_photo(row, con=None):
@@ -1388,6 +1529,7 @@ def delete_landmark_rows(con, landmark_id):
     for row in con.execute("SELECT * FROM photos WHERE kind = 'landmark' AND ref_id = ?",
                            (str(landmark_id),)).fetchall():
         trash_photo(row, con)
+    con.execute("DELETE FROM visit_dates WHERE kind = 'landmark' AND ref_id = ?", (str(landmark_id),))
     con.execute("DELETE FROM landmarks WHERE id = ?", (landmark_id,))
 
 
@@ -1398,6 +1540,7 @@ def remove_visit(kind, ref_id):
     for row in con.execute("SELECT * FROM photos WHERE kind = ? AND ref_id = ?", (kind, ref_id)).fetchall():
         trash_photo(row)
     con.execute("DELETE FROM visits WHERE kind = ? AND ref_id = ?", (kind, ref_id))
+    con.execute("DELETE FROM visit_dates WHERE kind = ? AND ref_id = ?", (kind, ref_id))
     con.commit()
     return jsonify(ok=True)
 
