@@ -100,7 +100,9 @@ systemd de usuário. Acesso pela rede de casa ou por VPN (ex.: Tailscale).
   deles (cidades, aeroportos, monumentos), e a cidade, as dos monumentos dela.
   Fotos com data de um mês sem visita aparecem como sugestão ("+ SET 2015
   pelas fotos"): um toque grava, nada é gravado sozinho. Desmarcar o lugar
-  apaga as datas dele (com aviso).
+  apaga as datas dele (com aviso). A última visita (dele ou herdada) aparece
+  ao lado de estado e país, embaixo do nome, já com a gaveta recolhida
+  ("São Paulo · Brasil · out. 2026").
 - **Marcação implícita**: cidade marca o estado e o país dela; estado marca o
   país. **Aeroporto não marca nada.** O implícito é calculado na hora, não é
   gravado: desmarcar a última cidade de um estado desmarca o estado, a menos que

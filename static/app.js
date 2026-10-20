@@ -1,6 +1,6 @@
 /* scratch map — frontend (vanilla JS + MapLibre, sem build). */
 (() => {
-  const { $, esc, api, json, fmtDate, fmtMonth, store, el, print, lightbox, t } = window.SM;
+  const { $, esc, api, json, fmtDate, fmtMonth, store, el, print, lightbox, t, LANG } = window.SM;
   const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
   const C = {
     water: css('--water'), land: css('--land'), border: css('--border'),
@@ -990,6 +990,7 @@
     const title = p.kind === 'airport' ? `${p.id} — ${p.name}` : p.name;
     const status = p.kind === 'landmark' ? '' : p.visited ? t('Visitado ✓') : t('Ainda não visitado');
     const all = [...p.photos, ...p.groups.flatMap((g) => g.photos)];
+    const last = lastVisit(p);
 
     // Com foto, a mais recente horizontal (vertical só se não houver; na cidade
     // entram as dos landmarks/aeroportos, no estado/país as das cidades) vira o
@@ -997,7 +998,7 @@
     const head = sheetHead(`
       <div class="kind-label"><i class="dot ${p.kind}"></i>${KIND_LABEL[p.kind]}</div>
       <h2>${esc(title)}</h2>
-      ${crumbs ? `<div class="crumbs">${crumbs}</div>` : ''}`, { onPhoto: all.length > 0 });
+      ${crumbs || last ? `<div class="crumbs">${[crumbs, last && `<span class="last-visit">${esc(last)}</span>`].filter(Boolean).join(' · ')}</div>` : ''}`, { onPhoto: all.length > 0 });
     if (all.length) {
       const cover = all.find((ph) => ph.width > ph.height) || all[0];
       const hero = el(`<div class="hero" data-drag><img src="${cover.url}" alt=""><div class="hero-fade"></div></div>`);
@@ -1096,6 +1097,17 @@
       await uploadPhotos(p.kind, p.id, file.files);
       reopen();
     });
+  }
+
+  // Última visita, ao lado da hierarquia (aparece com a gaveta recolhida): a
+  // data (dele ou herdada) que termina mais tarde; período mostra inteiro.
+  function lastVisit(p) {
+    const end = (w) => { const e = w.split('/').pop(); return e.length === 4 ? `${e}-12` : e; };
+    const all = [...(p.dates ?? []), ...(p.inherited ?? []).map((d) => d.month)];
+    if (!all.length) return '';
+    const w = all.reduce((a, b) => (end(b) > end(a) ? b : a));
+    // "out. 2026" (pt) / "Oct 2026" (en): mais leve que o "OUT 2026" das etiquetas
+    return fmtMonth(w).replace(/\b([A-Z]{3}) /g, (_, m) => (LANG === 'en' ? `${m[0]}${m.slice(1).toLowerCase()} ` : `${m.toLowerCase()}. `));
   }
 
   // Quando: as visitas do lugar (mês e ano; pode ter várias), as que ele herda
