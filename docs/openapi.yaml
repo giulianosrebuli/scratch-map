@@ -628,6 +628,58 @@ paths:
                         id: {type: string}
                         name: {type: string}
 
+  /api/boards:
+    get:
+      tags: [álbum]
+      summary: Quadros de continente
+      description: |
+        Os quadros de raspar dos continentes (`/boards`), com os países de
+        cada um e os contornos já desenhados (para as miniaturas). Precisa do
+        `geodata/boards.db` (`scripts/build_boards.py`); sem ele, 404.
+      responses:
+        "200":
+          description: Um item por continente.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: {type: string, example: south-america}
+                    title: {type: string}
+                    members: {type: array, items: {type: string}, description: Ids dos países (também os fora do desenho).}
+                    d: {type: array, items: {type: string}, description: Contorno SVG de cada país desenhado, na ordem de members.}
+        "404": {$ref: "#/components/responses/Error"}
+
+  /api/boards/{kind}/{id}:
+    get:
+      tags: [álbum]
+      summary: Um quadro de raspar
+      description: |
+        O quadro já desenhado, num SVG de 1500 × 1000: as porções (contorno
+        SVG), onde vai a sigla ou o nome de cada uma (ou o traço até a margem),
+        as lupas, a lista e o que ficou fora do desenho. Não diz o que foi
+        visitado: isso vem de `/api/visited`. Calculado na primeira vez e
+        guardado em cache. `state` só existe na instalação completa.
+      parameters:
+        - name: kind
+          in: path
+          required: true
+          schema: {type: string, enum: [continent, country, state]}
+        - name: id
+          in: path
+          required: true
+          description: Slug do continente (`south-america`), código do país (`BR`) ou do estado (`BR-SP`).
+          schema: {type: string}
+      responses:
+        "200":
+          description: O quadro.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Board"}
+        "404": {$ref: "#/components/responses/Error"}
+
   /api/stats:
     get:
       tags: [álbum, integração]
@@ -1162,6 +1214,56 @@ components:
         Data de visita: ano e mês (AAAA-MM), só o ano (AAAA) ou um período
         início/fim, como um intervalo da ISO 8601 (`2010/2018`,
         `2010-03/2018-06`), para lugar onde morou. O fim vem depois do início.
+    Board:
+      type: object
+      properties:
+        kind: {type: string, enum: [continent, country, state]}
+        id: {type: string}
+        title: {type: string}
+        member_kind: {type: string, enum: [country, state, city]}
+        canvas: {type: array, items: {type: number}, description: "[largura, altura] do SVG (1500, 1000)."}
+        members:
+          type: array
+          items:
+            type: object
+            properties:
+              id: {type: string}
+              name: {type: string}
+              abbr: {type: string, description: Sigla no mapa (SP, BRA).}
+              d: {type: string, description: Contorno SVG.}
+              label:
+                type: object
+                description: Onde vai a sigla (ou o nome, no quadro de estado), dentro da porção.
+                properties:
+                  x: {type: number}
+                  y: {type: number}
+                  size: {type: number}
+                  lines: {type: array, items: {type: string}}
+              callout:
+                type: object
+                description: Sigla fora, com o traço (path = pontos da trilha).
+                properties:
+                  side: {type: string, enum: [left, right]}
+                  x: {type: number}
+                  y: {type: number}
+                  size: {type: number}
+                  path: {type: string}
+        off:
+          type: array
+          description: Na lista, mas fora do desenho (longe do território principal ou sem contorno).
+          items:
+            type: object
+            properties:
+              id: {type: string}
+              name: {type: string}
+              abbr: {type: string}
+        insets:
+          type: array
+          description: Lupas (rect = onde a lupa fica; src = a região de origem no mapa; members como acima).
+          items: {type: object}
+        list: {type: object, description: Posição, colunas e tamanho da letra da lista.}
+        base: {type: string, description: "Quadro de estado: o contorno do estado, desenhado por baixo."}
+        flags: {type: array, items: {type: string}, description: "Quadro de continente: os países com bandeira no pacote."}
     SaveResult:
       type: object
       properties:

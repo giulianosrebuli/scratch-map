@@ -78,6 +78,34 @@ systemd de usuário. Acesso pela rede de casa ou por VPN (ex.: Tailscale).
   com os dados dele) e apagar (não com o único perfil; só move a pasta para
   `data/profiles-removed/`). O que o navegador guarda (vista "onde parei",
   camadas, ordem do mural) também é por perfil.
+- **Quadros** (`/boards`): o mapa de raspar no estilo dos pôsteres, estático
+  e só de leitura (marcar e desmarcar é no mapa). Sempre paisagem 3:2, fundo
+  escuro, moldura com filetes e cantoneiras douradas; título, contagem
+  ("10 de 27") e a lista no alto à esquerda, o mapa no resto (ou, quando o
+  mapa é largo, embaixo do título com a lista embaixo dele). Ainda não
+  visitado: película dourada com textura de papel metálico amassado;
+  visitado: prata clara, com a mesma textura. Três níveis:
+  `/boards/continent/<slug>` (a América em três: `north-america`,
+  `central-america`, `south-america`; e `europe`, `africa`, `asia`,
+  `oceania`) com os países, `/boards/country/<id>` com os estados e
+  `/boards/state/<id>` com as cidades (só na instalação completa: os
+  contornos de cidade vêm das áreas do Overture). Tocar numa porção leva ao
+  quadro de dentro ou ao lugar no mapa.
+  - **Nomes**: no mapa, a sigla em caixa alta (SP, BRA), deitada e inteira
+    dentro da porção; não cabendo, fora, com um traço estilo trilha de placa
+    de circuito (reto na porção e no nome, transições a 45°, sem cruzar). No
+    quadro de estado, o nome da cidade por extenso, pequeno, só dentro. A
+    lista tem o nome por extenso; no continente, o ícone vira a bandeira
+    quando o país foi raspado; no estado, só as cidades visitadas.
+  - **Lupa**: as regiões apertadas (Benelux e Alpes, Bálcãs, África
+    Ocidental, Levante e Golfo) ganham um recorte ampliado num lugar livre do
+    mapa, ligado à origem por uma linha tracejada.
+  - **Exportar imagem**: PNG 3000 × 2000, igual ao da tela.
+  - Os contornos vêm de `geodata/boards.db` (`scripts/build_boards.py`, ~3
+    min, 57 MB, a partir da montagem); cada quadro é calculado na primeira
+    vez que é aberto (~1 s; a América do Norte, ~10 s) e guardado em
+    `geodata/boards-cache/`. A textura é `static/textures/foil.png`
+    (`scripts/foil_texture.py`).
 - **Perfil** (`/profile`): no topo, nome e foto
   de perfil, editáveis ali mesmo (tocar na foto troca; a foto vira um
   quadrado de 512 px em `profile.jpg`, na pasta do perfil). Ao lado, os
@@ -615,6 +643,8 @@ exposta na internet. Ainda não há versão estável das rotas.
 | DELETE | `/api/profile` | apaga o perfil em uso (move para `data/profiles-removed/`; não o único) |
 | GET | `/profiles` | "quem está usando?"; `/profiles/<id>/use` escolhe (cookie `perfil`), `/profiles/<id>/photo.jpg` |
 | POST | `/profiles/new` | cria um perfil e abre o assistente para ele |
+| GET | `/api/boards` | quadros: os continentes, com os países de cada um |
+| GET | `/api/boards/<continent\|country\|state>/<id>` | um quadro já desenhado (porções em SVG, nomes, traços, lupas, lista) |
 | GET | `/api/stats` | álbum: países com bandeira (`visited`) e totais por tipo |
 | GET | `/api/stats/country/<id>` | estados do país, com cidades visitadas em cada |
 | GET | `/api/stats/state/<id>` | cidades do estado (visitadas, depois por população) |
