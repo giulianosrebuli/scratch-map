@@ -337,5 +337,12 @@
  "Chaves de API": "API keys",
  "Backup": "Backup",
  "Sobre o app": "About the app",
- "Geral": "General"
+ "Geral": "General",
+ "Atualização": "Updates",
+ "Versão instalada": "Installed version",
+ "Ainda não dá para atualizar por aqui. Por enquanto, a atualização é feita na máquina do servidor, com o código novo do GitHub:": "Updating from here isn't available yet. For now, update on the server machine, with the new code from GitHub:",
+ "Com Docker": "With Docker",
+ "Sem Docker": "Without Docker",
+ "Antes, baixe um backup": "First, download a backup",
+ "O que mudou": "What changed"
 }

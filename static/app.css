@@ -1020,3 +1020,6 @@ body.no-intro #setup-map, body.no-intro .setup, body.no-intro .setup-card { tran
   .settings-nav a[aria-current] { box-shadow: none; font-weight: 500; }
   .pane-head .pane-back { display: inline-block; color: var(--muted); text-decoration: none; font-size: 14px; }
 }
+.update-howto { display: flex; flex-direction: column; gap: 4px; }
+.update-howto code { font-size: 13px; padding: 6px 10px; border-radius: 8px; background: var(--bg); overflow-x: auto; white-space: nowrap; }
+.update-howto b { font-size: 13.5px; margin-top: 4px; }

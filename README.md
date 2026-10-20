@@ -205,7 +205,9 @@ systemd de usuário. Acesso pela rede de casa ou por VPN (ex.: Tailscale).
     Nominatim; bandeiras de estado, no Wikidata/Commons), dizendo o que sai e
     para quem. Desligado, o pedido não acontece;
   - **Chaves de API**: os tokens de integração deste perfil (criar, revogar);
-  - **Backup**: baixar um .zip com todos os perfis do servidor; restaurar.
+  - **Backup**: baixar um .zip com todos os perfis do servidor; restaurar;
+  - **Atualização**: a versão instalada e, por enquanto, o caminho manual
+    (abaixo, em "Operação"); atualizar pelo app ainda não existe.
   Exportar e apagar o perfil ficam no fim da página do Perfil ("Este perfil").
   Fica tudo na tabela `settings` (vale em todos os aparelhos) e entra no
   `<head>` de cada página (`templates/_head.html`).
@@ -585,8 +587,8 @@ journalctl --user -u scratch-map -f
 systemctl --user restart scratch-map    # depois de mudar código
 ```
 
-**Backup**: é do servidor inteiro. Pela tela (Configurações → Backup do
-servidor → "Baixar backup"): um `.zip` com **todos os perfis**, cada um em
+**Backup**: é do servidor inteiro. Pela tela (Configurações → Backup →
+"Baixar backup"): um `.zip` com **todos os perfis**, cada um em
 `profiles/<id>/` com o banco (visitas, monumentos, configurações, contornos),
 as fotos (original, exibição e miniatura), as bandeiras baixadas e a foto de
 perfil, mais um `manifest.json` com a lista dos perfis. Ficam de fora os
