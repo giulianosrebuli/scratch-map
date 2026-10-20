@@ -134,7 +134,8 @@
       const x = L.x + col * L.col_w, y = L.top + row * L.row_h + L.size * 0.8;
       const name = up(m.name.length > L.cut ? `${m.name.slice(0, L.cut - 1)}…` : m.name);
       return `<g class="item" data-id="${esc(m.id)}"><title>${esc(m.name)}</title>
-        <rect class="swatch" x="${x}" y="${y - L.size * 0.62}" width="${L.size * 1.15}" height="${L.size * 0.62}" rx="2"/>
+        <rect class="swatch" x="${x}" y="${y - L.size * 0.72}" width="${L.size * 1.03}" height="${L.size * 0.77}" rx="2"/>
+        ${mk === 'country' && b.flags?.includes(m.id) ? `<svg class="flag" x="${x}" y="${y - L.size * 0.72}" width="${L.size * 1.03}" height="${L.size * 0.77}" viewBox="0 64 512 384" style="display:none"><image href="/static/vendor/flags/${esc(m.id)}.svg" width="512" height="512"/></svg>` : ''}
         ${cityBoard ? '' : `<text x="${x + L.size * 1.5}" y="${y}" font-size="${L.size * 0.82}" class="abbr">${esc(m.abbr)}</text>`}
         <text x="${x + L.size * nameX}" y="${y}" font-size="${L.size}">${esc(name)}${m.off ? ' *' : ''}</text></g>`;
     }).join('') || (cityBoard ? `<text x="${L.x}" y="${L.top + 16}" class="note">${t('Nenhuma cidade visitada ainda.')}</text>` : '');
@@ -189,8 +190,15 @@
     const paint = () => {
       for (const x of svg.querySelectorAll('[data-id]')) x.classList.toggle('on', isOn(mk, x.dataset.id));
       for (const r of svg.querySelectorAll('.item .swatch')) {
-        const on = isOn(mk, r.parentNode.dataset.id);
+        const id = r.parentNode.dataset.id, on = isOn(mk, id);
         r.setAttribute('fill', on ? 'url(#silver-line)' : 'url(#gold-line)');
+        // continente: raspado mostra a bandeira do país (sem bandeira no pacote: prata);
+        // as do pacote são quadradas: o svg em volta mostra só a faixa do meio, em 4:3
+        const flag = r.nextElementSibling?.classList.contains('flag') ? r.nextElementSibling : null;
+        if (flag) {
+          flag.style.display = on ? '' : 'none';
+          if (on) r.setAttribute('fill', 'none');  // a bandeira ocupa o ícone todo
+        }
       }
       const n = all.filter((m) => isOn(mk, m.id)).length;
       $('.subtitle', svg).textContent = t('{n} de {total}', { n, total: all.length });
@@ -228,9 +236,16 @@
         const clone = svg.cloneNode(true);
         clone.setAttribute('width', CW);
         clone.setAttribute('height', CH);
-        const tex = await fetch('/static/textures/foil.png').then((r) => r.blob());
-        const dataURL = await new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(tex); });
-        clone.querySelectorAll('image').forEach((im) => im.setAttribute('href', dataURL));
+        // cada imagem (textura, bandeiras) vira data: URL
+        const toData = async (url) => {
+          const blob = await fetch(url).then((r) => r.blob());
+          return new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(blob); });
+        };
+        const cache = {};
+        for (const im of clone.querySelectorAll('image')) {
+          const url = im.getAttribute('href');
+          im.setAttribute('href', await (cache[url] ??= toData(url)));
+        }
         const style = document.createElementNS(NS, 'style');
         style.textContent = [...document.styleSheets].flatMap((sh) => { try { return [...sh.cssRules]; } catch { return []; } })
           .map((r) => r.cssText).filter((c) => c.includes('.board-svg')).join('\n');

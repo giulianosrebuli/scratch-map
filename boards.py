@@ -67,7 +67,7 @@ CONTINENTS = {
 MEXICO = "MX"  # o Natural Earth põe na América Central
 
 
-LAYOUT = 13  # suba quando mudar o desenho do quadro: invalida o cache em disco
+LAYOUT = 14  # suba quando mudar o desenho do quadro: invalida o cache em disco
 
 
 def disk_cached(fn):
@@ -554,7 +554,9 @@ def continent(boards_db, geo_db, slug, lang):
     out = build(spec["bbox"], members, [n for _, n, _ in members + off], title, codes=codes, prune=spec.get("prune"),
                 insets=spec.get("insets"))
     off = [(i, n) for i, n, _ in off] + out.pop("dropped")
+    flags = {f.stem for f in (Path(__file__).resolve().parent / "static" / "vendor" / "flags").glob("*.svg")}
     out.update(kind="continent", id=slug, title=title, member_kind="country",
+               flags=sorted(i for i, _, _ in members + [(x, None, None) for x, _ in off] if i in flags),
                off=[{"id": i, "name": n, "abbr": codes.get(i) or abbr(i, n)} for i, n in sorted(off, key=lambda x: x[1])])
     return out
 
