@@ -344,5 +344,12 @@
  "Com Docker": "With Docker",
  "Sem Docker": "Without Docker",
  "Antes, baixe um backup": "First, download a backup",
- "O que mudou": "What changed"
+ "O que mudou": "What changed",
+ "Comparar com": "Compare with",
+ "Juntos": "Together",
+ "Os dois, em datas diferentes": "Both, on different dates",
+ "Só você": "Only you",
+ "Só {nome}": "Only {nome}",
+ "Juntos: os dois visitaram, com um mês em comum nas datas de visita. Sem data, ou em datas diferentes: tracejado.": "Together: both visited, with a month in common in the visit dates. No date, or different dates: hatched.",
+ "escolha outro perfil": "pick another profile"
 }

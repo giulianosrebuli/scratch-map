@@ -129,6 +129,13 @@ systemd de usuário. Acesso pela rede de casa ou por VPN (ex.: Tailscale).
   apaga as datas dele (com aviso). A última visita (dele ou herdada) aparece
   ao lado de estado e país, embaixo do nome, já com a gaveta recolhida
   ("São Paulo · Brasil · out. 2026").
+- **Comparar com** (no Perfil, com mais de um perfil): este perfil e outro
+  da casa. Cada lugar visitado por algum dos dois cai numa de quatro cores:
+  **juntos** (os dois visitaram, com um mês em comum nas datas de visita,
+  próprias ou herdadas do que está dentro), **os dois em datas diferentes**
+  (ou sem data: a mesma cor, mais clara e tracejada), **só você** e **só a
+  outra pessoa**. Mapa pequeno, contagens por tipo e as listas de países e
+  estados de cada cor (`/api/compare/<id>`).
 - **Marcação implícita**: cidade marca o estado e o país dela; estado marca o
   país. **Aeroporto não marca nada.** O implícito é calculado na hora, não é
   gravado: desmarcar a última cidade de um estado desmarca o estado, a menos que
@@ -658,6 +665,7 @@ deve ficar exposta na internet.
 | POST | `/profiles/new` | cria um perfil e abre o assistente para ele |
 | GET | `/api/boards` | quadros: os continentes, com os países de cada um |
 | GET | `/api/boards/<continent\|country\|state>/<id>` | um quadro já desenhado (porções em SVG, nomes, traços, lupas, lista) |
+| GET | `/api/compare/<id>` | compara com outro perfil: cada lugar em `together`, `apart`, `me` ou `them`, com nomes e pontos |
 | GET | `/api/stats` | álbum: países com bandeira (`visited`) e totais por tipo |
 | GET | `/api/stats/country/<id>` | estados do país, com cidades visitadas em cada |
 | GET | `/api/stats/state/<id>` | cidades do estado (visitadas, depois por população) |

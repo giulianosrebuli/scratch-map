@@ -908,7 +908,8 @@ def import_profile():
 
 @app.get("/profile")
 def profile_page():
-    return render_template("profile.html")
+    others = [p.info() for p in profiles.list_all() if p.id != prof().id]
+    return render_template("profile.html", others=others, geo_v=int(TILES.stat().st_mtime))
 
 
 @app.get("/settings")
@@ -1467,6 +1468,72 @@ def contains(kind, ref_id, r):
         return False
     key = {"city": "city_id", "state": "state_id", "country": "country_id"}.get(kind)
     return bool(key) and str(r[key]) == ref_id
+
+
+def visit_snapshot():
+    """O que o perfil desta requisição visitou e, para cada lugar, os meses
+    das visitas (as dele e as herdadas do que está dentro), para comparar."""
+    vis = visited_set()
+    own, inside = {}, {"city": {}, "state": {}, "country": {}}
+    for r in dated():
+        rng = date_range(r["month"])
+        own.setdefault((r["kind"], str(r["ref_id"])), []).append(rng)
+        for kind, key in (("city", "city_id"), ("state", "state_id"), ("country", "country_id")):
+            if r[key] and r["kind"] != kind:
+                inside[kind].setdefault(str(r[key]), []).append(rng)
+    ranges = lambda kind, pid: own.get((kind, pid), []) + inside.get(kind, {}).get(pid, [])
+    return vis, ranges
+
+
+COMPARE_KINDS = ("country", "state", "city", "airport")
+
+
+@app.get("/api/compare/<pid>")
+def compare(pid):
+    """Compara o perfil em uso com outro: cada lugar visitado por algum dos
+    dois cai em together (os dois, com um mês em comum nas datas de visita),
+    apart (os dois, sem mês em comum ou sem data), me ou them (só um)."""
+    other = profiles.get(pid) or abort(404)
+    if other.id == prof().id:
+        abort(400, tr("escolha outro perfil"))
+    mine, my_ranges = visit_snapshot()
+    me = g.prof
+    saved = g.pop("db", None)
+    try:  # o outro perfil: mesmo código, outro banco (o idioma continua o meu)
+        g.prof = other
+        theirs, their_ranges = visit_snapshot()
+        their_name = settings().get("profile_name") or ""
+    finally:
+        close_db(None)
+        g.prof = me
+        if saved is not None:
+            g.db = saved
+    out = {k: {"together": [], "apart": [], "me": [], "them": []} for k in COMPARE_KINDS}
+    for kind, pid_ in mine | theirs:
+        if kind not in out:
+            continue
+        if (kind, pid_) in mine and (kind, pid_) in theirs:
+            a, b = my_ranges(kind, pid_), their_ranges(kind, pid_)
+            same = any(x[0] <= y[1] and y[0] <= x[1] for x in a for y in b)
+            out[kind]["together" if same else "apart"].append(pid_)
+        else:
+            out[kind]["me" if (kind, pid_) in mine else "them"].append(pid_)
+    # nomes (e pontos, para cidade e aeroporto) de tudo o que aparece
+    con, info = db(), {k: {} for k in COMPARE_KINDS}
+    ids = lambda k: [i for cat in out[k].values() for i in cat]
+    q = lambda sql, k: con.execute(sql.format(",".join("?" * len(ids(k)))), ids(k)) if ids(k) else []
+    for r in q("SELECT id, name FROM countries WHERE id IN ({})", "country"):
+        info["country"][r["id"]] = {"name": r["name"]}
+    for r in q("SELECT id, name FROM geo.states WHERE id IN ({})", "state"):
+        info["state"][r["id"]] = {"name": r["name"]}
+    for r in q("SELECT id, name, lat, lon FROM geo.cities WHERE id IN ({})", "city"):
+        info["city"][str(r["id"])] = {"name": r["name"], "lat": r["lat"], "lon": r["lon"]}
+    for r in q("SELECT id, name, lat, lon FROM geo.airports WHERE id IN ({})", "airport"):
+        info["airport"][r["id"]] = {"name": f"{r['id']} — {r['name']}", "lat": r["lat"], "lon": r["lon"]}
+    for k in COMPARE_KINDS:
+        for cat in out[k]:
+            out[k][cat].sort(key=lambda i: norm(info[k].get(i, {}).get("name", i)))
+    return jsonify(other={"id": other.id, "name": their_name}, places=out, info=info)
 
 
 def place_dates(kind, ref_id, photos):

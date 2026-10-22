@@ -772,6 +772,47 @@ paths:
       responses:
         "200": {$ref: "#/components/responses/Ok"}
 
+  /api/compare/{id}:
+    get:
+      tags: [álbum, perfil]
+      summary: Compara este perfil com outro
+      description: |
+        Cada lugar visitado por algum dos dois perfis cai numa categoria:
+        `together` (os dois, com um mês em comum nas datas de visita, próprias
+        ou herdadas do que está dentro), `apart` (os dois, sem mês em comum ou
+        sem data), `me` (só este) ou `them` (só o outro). Com nomes e, para
+        cidade e aeroporto, o ponto.
+      parameters:
+        - {name: id, in: path, required: true, description: Id do outro perfil., schema: {type: string}}
+      responses:
+        "200":
+          description: A comparação.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  other:
+                    type: object
+                    properties:
+                      id: {type: string}
+                      name: {type: string}
+                  places:
+                    type: object
+                    description: Por tipo (country, state, city, airport), os ids de cada categoria.
+                    additionalProperties:
+                      type: object
+                      properties:
+                        together: {type: array, items: {type: string}}
+                        apart: {type: array, items: {type: string}}
+                        me: {type: array, items: {type: string}}
+                        them: {type: array, items: {type: string}}
+                  info:
+                    type: object
+                    description: Por tipo e id, o nome (e lat/lon de cidade e aeroporto).
+        "400": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+
   /api/stats:
     get:
       tags: [álbum, integração]
