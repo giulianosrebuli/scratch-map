@@ -70,6 +70,7 @@ tags:
   - name: lugares
   - name: fotos
   - name: monumentos
+  - name: voos
   - name: álbum
   - name: perfil
   - name: backup
@@ -305,6 +306,94 @@ paths:
         - {name: month, in: path, required: true, schema: {$ref: "#/components/schemas/Month"}}
       responses:
         "200": {$ref: "#/components/responses/Ok"}
+
+  /api/flights:
+    get:
+      tags: [voos]
+      summary: Voos do perfil
+      description: Do mais recente ao mais antigo (data, depois horário de partida).
+      responses:
+        "200":
+          description: Voos.
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: "#/components/schemas/Flight"}}
+    post:
+      tags: [voos]
+      summary: Acrescenta um voo
+      description: |
+        Marca os dois aeroportos e acrescenta o mês do voo às datas de visita
+        deles (voo no futuro não vira data). O código é normalizado
+        (`la 3456` → `LA3456`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, date, origin, destination]
+              properties:
+                code: {type: string, example: LA3456}
+                date: {type: string, format: date}
+                origin: {type: string, description: Código IATA.}
+                destination: {type: string, description: Código IATA.}
+                departs: {type: [string, "null"], example: "22:10", description: Hora local da partida (HH:MM).}
+                arrives: {type: [string, "null"], example: "11:45", description: Hora local da chegada (HH:MM).}
+            example: {code: LA3456, date: "2025-03-10", origin: GRU, destination: LIS, departs: "22:10", arrives: "11:45"}
+      responses:
+        "200":
+          description: O voo criado.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Flight"}
+        "400": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+
+  /api/flights/{id}:
+    delete:
+      tags: [voos]
+      summary: Apaga um voo
+      description: Os aeroportos continuam marcados.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: integer}}
+      responses:
+        "200": {$ref: "#/components/responses/Ok"}
+
+  /api/flights/lookup:
+    get:
+      tags: [voos]
+      summary: Rota e horários de um voo (AeroDataBox)
+      description: |
+        Só com a chave da AeroDataBox nas configurações (sem chave: 409).
+        Sai da máquina: o código e a data. Um número pode ter mais de um
+        trecho no dia; trechos com aeroporto que o mapa não tem ficam de fora.
+        Falha na consulta: 200 com `error` (mensagem para mostrar).
+      parameters:
+        - {name: code, in: query, required: true, schema: {type: string}, example: LA3456}
+        - {name: date, in: query, required: true, schema: {type: string, format: date}}
+      responses:
+        "200":
+          description: Trechos encontrados.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  legs:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        origin: {type: string}
+                        origin_name: {type: string}
+                        destination: {type: string}
+                        destination_name: {type: string}
+                        departs: {type: [string, "null"]}
+                        arrives: {type: [string, "null"]}
+                        airline: {type: [string, "null"]}
+                  error: {type: string}
+        "400": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
 
   /api/years:
     get:
@@ -941,6 +1030,7 @@ paths:
                 ext_landmark_name: {type: boolean}
                 ext_city_shape: {type: boolean}
                 ext_state_flags: {type: boolean}
+                aerodatabox_key: {type: [string, "null"], maxLength: 200, description: Chave da AeroDataBox (RapidAPI) para a consulta de voo. Vale para todos os perfis (é do servidor); vazio ou null remove.}
               patternProperties:
                 "^color_(water|land|country|state|city|airport|landmark)$":
                   type: [string, "null"]
@@ -1408,6 +1498,24 @@ components:
       properties:
         saved: {type: array, items: {type: integer}}
         errors: {type: array, items: {type: string}}
+    Flight:
+      type: object
+      properties:
+        id: {type: integer}
+        code: {type: string, example: LA3456}
+        date: {type: string, format: date}
+        departs: {type: [string, "null"], example: "22:10"}
+        arrives: {type: [string, "null"], example: "11:45"}
+        origin: {$ref: "#/components/schemas/FlightAirport"}
+        destination: {$ref: "#/components/schemas/FlightAirport"}
+    FlightAirport:
+      type: object
+      properties:
+        id: {type: string, description: Código IATA., example: GRU}
+        name: {type: string}
+        city: {type: [string, "null"]}
+        lat: {type: number}
+        lon: {type: number}
     Prefs:
       type: object
       properties:
@@ -1419,3 +1527,4 @@ components:
         external: {type: object, additionalProperties: {type: boolean}}
         borders: {type: object, additionalProperties: {type: boolean}}
         skip_animations: {type: boolean}
+        flight_lookup: {type: boolean, description: Há chave da AeroDataBox (a chave não volta).}

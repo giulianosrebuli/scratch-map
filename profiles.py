@@ -9,7 +9,8 @@ Cada perfil é uma pasta em data/profiles/<id>/ com tudo o que é dele:
   flags/        bandeiras de estado baixadas
 
 Da casa toda (fora dos perfis): os dados do mapa (geodata/), o que o
-assistente decidiu (data/setup.json) e o backup, que é do servidor inteiro
+assistente decidiu (data/setup.json), as configurações do servidor todo
+(data/server.json, como a chave da AeroDataBox) e o backup, que é do servidor inteiro
 (app.py; cópias "antes de restaurar" em data/backups/). Cada aparelho lembra
 o perfil escolhido num cookie; com um perfil só, ele é usado direto, sem
 perguntar.

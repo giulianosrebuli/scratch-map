@@ -1,7 +1,7 @@
-/* scratch map — perfil: nome e foto, editáveis no topo da página (o álbum de
-   bandeiras abaixo é o stats.js). */
+/* scratch map — perfil: nome e foto, editáveis no topo da página, e a lista
+   de voos (o álbum de bandeiras é o stats.js). */
 (() => {
-  const { $, api, json, t } = window.SM;
+  const { $, esc, api, json, el, fmtDate, t } = window.SM;
   const name = $('#profile-name');
   const hint = $('#profile-hint');
   const avatar = $('#avatar');
@@ -38,6 +38,30 @@
       alert(t('Não deu para apagar: {erro}', { erro: e.message }));
     }
   });
+
+  // voos: o mais recente primeiro; apagar não desmarca os aeroportos
+  const flightList = $('#flight-list');
+  async function loadFlights() {
+    const items = await api('/api/flights');
+    flightList.innerHTML = '';
+    $('#flights-empty').hidden = items.length > 0;
+    for (const f of items) {
+      const hours = f.departs || f.arrives ? ` · ${f.departs || '?'} → ${f.arrives || '?'}` : '';
+      const li = el(`<li>
+        <span class="code">${esc(f.code)}</span>
+        <div class="name"><span class="route">${esc(f.origin.id)} → ${esc(f.destination.id)}</span>
+          <small>${fmtDate(f.date)}${hours} · ${esc(f.origin.city || f.origin.name)} → ${esc(f.destination.city || f.destination.name)}</small></div>
+        <button class="del" title="${esc(t('Apagar voo'))}" aria-label="${esc(t('Apagar voo'))}">×</button>
+      </li>`);
+      $('.del', li).addEventListener('click', async () => {
+        if (!confirm(t('Apagar o voo {code} de {data}? Os aeroportos continuam marcados.', { code: f.code, data: fmtDate(f.date) }))) return;
+        await api(`/api/flights/${f.id}`, { method: 'DELETE' });
+        loadFlights();
+      });
+      flightList.append(li);
+    }
+  }
+  loadFlights();
 
   avatar.addEventListener('click', () => file.click());
   file.addEventListener('change', async () => {

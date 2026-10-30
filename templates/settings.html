@@ -234,6 +234,20 @@
             </label>
             <button class="btn secondary small" id="refetch-flags" {{ 'disabled' if not ext.ext_state_flags }}>{{ _('Buscar bandeiras de novo') }}</button>
           </li>
+          {# chave da AeroDataBox (flights.py): com ela, o voo se preenche pelo código e pela data #}
+          <li>
+            <span class="switch-row">
+              <span>
+                <b>{{ _('Rota e horário do voo') }}</b>
+                <small>{{ _('O código do voo não diz a rota. Com uma chave da AeroDataBox (tem plano gratuito, em rapidapi.com), o código e a data preenchem origem, destino e horários; a AeroDataBox recebe o código e a data do voo. Sem chave, nada é pedido e os aeroportos são escolhidos à mão. A chave vale para todos os perfis deste servidor.') }}</small>
+              </span>
+            </span>
+            <form class="token-new" id="flight-key">
+              <input type="password" name="key" autocomplete="off" placeholder="{{ _('Chave salva') if prefs.flight_lookup else _('Chave da AeroDataBox (X-RapidAPI-Key)') }}">
+              <button class="btn secondary small">{{ _('Salvar') }}</button>
+              <button class="btn secondary small" type="button" id="flight-key-remove" {{ 'hidden' if not prefs.flight_lookup }}>{{ _('Remover') }}</button>
+            </form>
+          </li>
         </ul>
         </div>
       </section>

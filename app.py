@@ -29,6 +29,7 @@ from werkzeug.exceptions import HTTPException
 
 import boards
 import boundaries
+import flights
 import i18n
 import installer
 import profiles
@@ -44,6 +45,7 @@ GEODATA = Path(os.environ.get("SCRATCH_GEODATA", ROOT / "geodata"))
 GEO_DB = GEODATA / "geo.db"
 TILES = GEODATA / "world.pmtiles"
 BOARDS_DB = GEODATA / "boards.db"   # quadros de raspar (scripts/build_boards.py)
+SERVER_CONF = DATA / "server.json"  # configurações do servidor todo (não de um perfil): server_conf()
 KINDS = ("country", "state", "city", "airport")   # o que pode ser marcado (visits)
 PHOTO_KINDS = KINDS + ("landmark",)                # o que pode ter foto
 DISPLAY_PX = 2000  # lado maior da versão exibida
@@ -95,7 +97,7 @@ CREATE TABLE IF NOT EXISTS visit_dates (
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     PRIMARY KEY (kind, ref_id, month)
 );
-""" + boundaries.SCHEMA + state_flags.SCHEMA + tokens.SCHEMA
+""" + boundaries.SCHEMA + state_flags.SCHEMA + tokens.SCHEMA + flights.SCHEMA
 
 
 def prof():
@@ -399,6 +401,25 @@ def board_api(kind, board_id):
     return jsonify({**b, "canvas": boards.CANVAS})
 
 
+def server_conf():
+    """Configurações que valem para todos os perfis (hoje, a chave da AeroDataBox). Ficam
+    fora dos perfis: não vão no export do perfil nem no backup, e restaurar não as troca."""
+    try:
+        return json.loads(SERVER_CONF.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def set_server_conf(key, value):
+    conf = {k: v for k, v in server_conf().items() if k != key}
+    if value is not None:
+        conf[key] = value
+    tmp = SERVER_CONF.with_name(SERVER_CONF.name + ".tmp")
+    tmp.write_text(json.dumps(conf))
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, SERVER_CONF)
+
+
 def settings():
     """Configurações da instância (tabela settings). Ver prefs() e a página
     /settings. Vista inicial do mapa: start_view = country (cidades visitadas em
@@ -449,6 +470,7 @@ def prefs():
         "external": {k: st.get(k) != "0" for k in EXTERNAL},
         "borders": {k: st[k] == "1" if k in st else d for k, d in BORDERS.items()},
         "skip_animations": st.get("skip_animations") == "1",
+        "flight_lookup": bool(server_conf().get(flights.KEY_SETTING)),  # a chave em si não sai daqui
     }
 
 
@@ -510,7 +532,8 @@ def set_setting(key, value):
 def patch_settings():
     """Grava preferências. `null` volta ao padrão. Chaves aceitas: theme,
     color_<tipo> (#rrggbb), profile_name, start_view, home_country,
-    start_fixed, projection, language, ext_*, borders_* e skip_animations (true/false)."""
+    start_fixed, projection, language, ext_*, borders_*, skip_animations (true/false) e
+    aerodatabox_key (consulta de voo, vale para todos os perfis; vazio desliga)."""
     import re
     body = request.get_json(force=True) or {}
     for key, value in body.items():
@@ -538,6 +561,8 @@ def patch_settings():
             set_setting(key, "1" if value else "0")
         elif key == "skip_animations" and isinstance(value, bool):
             set_setting(key, "1" if value else None)
+        elif key == flights.KEY_SETTING and (value is None or isinstance(value, str)):
+            set_server_conf(key, (value or "").strip()[:200] or None)
         else:
             abort(400, f"configuração inválida: {key}")
     db().commit()
@@ -658,7 +683,7 @@ def delete_profile():
 # Backup é do servidor: um .zip com todos os perfis (profiles/<id>/: banco,
 # fotos — original, exibição e miniatura —, bandeiras e foto de perfil).
 # Fica de fora o que se refaz ou não é de ninguém: os dados do mapa (geodata/,
-# o assistente monta de novo), o setup.json (vale para esta máquina), a
+# o assistente monta de novo), o setup.json e o server.json (valem para esta máquina), a
 # lixeira de fotos e as cópias "antes de restaurar". Restaurar troca todos os
 # perfis, depois de guardar o estado atual em data/backups/.
 # Exportar/importar perfil: um perfil só, na raiz do .zip (o formato dos
@@ -1687,6 +1712,90 @@ def remove_visit(kind, ref_id):
     con.execute("DELETE FROM visit_dates WHERE kind = ? AND ref_id = ?", (kind, ref_id))
     con.commit()
     return jsonify(ok=True)
+
+
+def flight_rows(where="", args=()):
+    rows = db().execute(f"""
+        SELECT f.*, o.name AS o_name, o.municipality AS o_city, o.lat AS o_lat, o.lon AS o_lon,
+               d.name AS d_name, d.municipality AS d_city, d.lat AS d_lat, d.lon AS d_lon
+          FROM flights f JOIN geo.airports o ON o.id = f.origin JOIN geo.airports d ON d.id = f.destination
+         {where} ORDER BY f.date DESC, f.departs DESC, f.id DESC""", args).fetchall()
+    end = lambda r, p, col: {"id": r[col], "name": r[f"{p}_name"], "city": r[f"{p}_city"],
+                             "lat": r[f"{p}_lat"], "lon": r[f"{p}_lon"]}
+    return [{"id": r["id"], "code": r["code"], "date": r["date"], "departs": r["departs"], "arrives": r["arrives"],
+             "origin": end(r, "o", "origin"), "destination": end(r, "d", "destination")} for r in rows]
+
+
+@app.get("/api/flights")
+def list_flights():
+    """Voos do perfil, do mais recente ao mais antigo."""
+    return jsonify(flight_rows())
+
+
+@app.post("/api/flights")
+def add_flight():
+    """`{code, date, origin, destination, departs?, arrives?}`. Marca os dois aeroportos e
+    acrescenta o mês do voo às datas de visita deles."""
+    body = request.get_json(force=True) or {}
+    code = flights.norm_code(body.get("code"))
+    if not code:
+        abort(400, tr("código de voo inválido (ex.: LA3456)"))
+    try:
+        date = dt.date.fromisoformat(str(body.get("date", ""))).isoformat()
+    except ValueError:
+        abort(400, tr("data inválida"))
+    origin, dest = str(body.get("origin", "")).upper(), str(body.get("destination", "")).upper()
+    if origin == dest:
+        abort(400, tr("origem e destino são o mesmo aeroporto"))
+    for a in (origin, dest):
+        place_info("airport", a)  # 404 se não existir
+    times = [body.get(k) or None for k in ("departs", "arrives")]
+    if any(x is not None and not flights.valid_time(x) for x in times):
+        abort(400, tr("horário inválido (HH:MM)"))
+    con = db()
+    fid = con.execute("""INSERT INTO flights (code, date, origin, destination, departs, arrives)
+                         VALUES (?, ?, ?, ?, ?, ?)""", (code, date, origin, dest, *times)).lastrowid
+    for a in (origin, dest):
+        mark("airport", a)
+        if valid_when(date[:7]):  # voo marcado no futuro não vira data de visita
+            con.execute("INSERT OR IGNORE INTO visit_dates (kind, ref_id, month) VALUES ('airport', ?, ?)",
+                        (a, date[:7]))
+    con.commit()
+    return jsonify(flight_rows("WHERE f.id = ?", (fid,))[0])
+
+
+@app.delete("/api/flights/<int:fid>")
+def delete_flight(fid):
+    """Apaga o voo. Os aeroportos continuam marcados."""
+    con = db()
+    con.execute("DELETE FROM flights WHERE id = ?", (fid,))
+    con.commit()
+    return jsonify(ok=True)
+
+
+@app.get("/api/flights/lookup")
+def lookup_flight():
+    """Origem, destino e horários de `code` em `date`, pela AeroDataBox (só com a chave na
+    configuração). `{legs: [...]}`; as pernas com aeroporto que o mapa não tem ficam de fora."""
+    key = server_conf().get(flights.KEY_SETTING)
+    if not key:
+        abort(409, tr("sem chave da AeroDataBox na configuração"))
+    code = flights.norm_code(request.args.get("code"))
+    try:
+        date = dt.date.fromisoformat(request.args.get("date", "")).isoformat()
+    except ValueError:
+        date = None
+    if not code or not date:
+        abort(400)
+    try:
+        legs = flights.lookup(key, code, date)
+    except flights.LookupFailed as e:
+        return jsonify(legs=[], error=tr(e.msg, **e.kw))
+    names = {r["id"]: r["name"] for r in db().execute(
+        "SELECT id, name FROM geo.airports WHERE id IN (SELECT value FROM json_each(?))",
+        (json.dumps([x for leg in legs for x in (leg["origin"], leg["destination"])]),))}
+    return jsonify(legs=[{**leg, "origin_name": names[leg["origin"]], "destination_name": names[leg["destination"]]}
+                         for leg in legs if leg["origin"] in names and leg["destination"] in names])
 
 
 def exif_date(img):
