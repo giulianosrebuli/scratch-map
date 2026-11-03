@@ -17,10 +17,18 @@ systemd de usuário. Acesso pela rede de casa ou por VPN (ex.: Tailscale).
 
 ## Funcionalidades
 
-- **Camadas liga/desliga**: os 5 botões do topo (Países, Estados, Cidades,
-  Aeroportos, Monumentos, com a contagem de cada um; no celular só ícone e
-  contagem) ligam e desligam cada destaque no mapa. A escolha fica salva no
-  navegador.
+- **Camadas liga/desliga**: os 6 botões do topo (Países, Estados, Cidades,
+  Aeroportos, Rotas, Monumentos, com a contagem de cada um; no celular só
+  ícone e contagem) ligam e desligam cada destaque no mapa. A escolha fica
+  salva no navegador. Rotas (as pontes aéreas) dependem dos aeroportos:
+  desligar Aeroportos desliga Rotas; ligar Rotas liga Aeroportos; religar
+  Aeroportos deixa Rotas como estava.
+- **Pontes aéreas**: cada par de aeroportos com voo vira um arco no mapa,
+  ida e volta juntas; quanto mais voos, mais grosso. Visto de cima, um arco
+  vertical seria uma reta, então ele é levantado para o norte da tela (mais
+  alto quanto mais longe) e a rota de verdade (grande círculo) fica embaixo,
+  como sombra no chão. Passar o mouse mostra o par e quantos voos; tocar na linha abre a
+  gaveta com os voos daquela rota (e os dois aeroportos).
 - **Idioma**: português ou inglês, escolhido no primeiro cartão do assistente
   (antes de "Começar do zero") e trocável em Configurações → Aparência. Os
   textos ficam em `i18n/<idioma>.json`, com o português como chave (veja
@@ -52,6 +60,13 @@ systemd de usuário. Acesso pela rede de casa ou por VPN (ex.: Tailscale).
     Marcadas, uma cena só raspa tudo junto; os contornos chegam aos poucos;
   - **Aeroporto**: busca pelo nome, pela cidade ou pelo código IATA (GRU) e
     a mesma bandeira (aeroporto não marca a cidade nem o país);
+  - **Voo**: código (LA3456) e data, origem e destino (busca de aeroporto)
+    e, se quiser, os horários de partida e chegada (hora local). Salvar
+    marca os dois aeroportos e põe o mês do voo nas datas de visita deles.
+    O código não diz a rota: com uma chave da AeroDataBox (Configurações →
+    Dados e privacidade), "Buscar rota e horário" preenche origem, destino
+    e horários pelo código e pela data (voo com mais de um trecho no dia:
+    escolhe-se o trecho);
   - **Monumento**: a partir de foto (veja "Monumentos");
   - **Foto**: busca qualquer lugar (país, estado, cidade, aeroporto ou
     monumento); tocar nele abre a escolha dos arquivos e, depois do envio, o
@@ -63,7 +78,7 @@ systemd de usuário. Acesso pela rede de casa ou por VPN (ex.: Tailscale).
   volta. "Toque para pular" termina na hora. A marcação em si é gravada
   antes, a cena só mostra.
 - **Tocar no mapa** abre o lugar na gaveta, o mais específico entre as camadas
-  ligadas: contorno de cidade → aeroporto → estado → país. Tocando num
+  ligadas: contorno de cidade → aeroporto → ponte aérea → estado → país. Tocando num
   estado/país, a gaveta lista também as cidades e aeroportos perto de onde
   você tocou, já com a bandeira para marcar (é por aí que se marca aeroporto,
   estado ou país direto).
@@ -115,7 +130,9 @@ systemd de usuário. Acesso pela rede de casa ou por VPN (ex.: Tailscale).
   dos não visitados começa dobrada, com "Ver mais"). Tocar
   num país mostra os estados; num estado, as cidades; numa cidade, abre no
   mapa (`/profile#BR`, `/profile#BR/BR-SP`). Estado/cidade sem bandeira mostra a
-  sigla. No fim, as listas de aeroportos e monumentos.
+  sigla. No fim, as listas de aeroportos e monumentos. Depois do álbum, os
+  **voos**, do mais recente ao mais antigo (apagar um voo não desmarca os
+  aeroportos).
 - **Data da visita**: na gaveta do lugar, **Quando** guarda ano e mês de cada
   visita (pode ter várias; o ano vai até o atual). O mês é opcional: para
   lugar onde morou, ou viagem de que só lembra o ano, fica só o ano (que
@@ -129,6 +146,13 @@ systemd de usuário. Acesso pela rede de casa ou por VPN (ex.: Tailscale).
   apaga as datas dele (com aviso). A última visita (dele ou herdada) aparece
   ao lado de estado e país, embaixo do nome, já com a gaveta recolhida
   ("São Paulo · Brasil · out. 2026").
+- **Comparar com** (no Perfil, com mais de um perfil): este perfil e outro
+  da casa. Cada lugar visitado por algum dos dois cai numa de quatro cores:
+  **juntos** (os dois visitaram, com um mês em comum nas datas de visita,
+  próprias ou herdadas do que está dentro), **os dois em datas diferentes**
+  (ou sem data: a mesma cor, mais clara e tracejada), **só você** e **só a
+  outra pessoa**. Mapa pequeno, contagens por tipo e as listas de países e
+  estados de cada cor (`/api/compare/<id>`).
 - **Marcação implícita**: cidade marca o estado e o país dela; estado marca o
   país. **Aeroporto não marca nada.** O implícito é calculado na hora, não é
   gravado: desmarcar a última cidade de um estado desmarca o estado, a menos que
@@ -203,7 +227,11 @@ systemd de usuário. Acesso pela rede de casa ou por VPN (ex.: Tailscale).
   - **Dados e privacidade**: um liga/desliga para cada pedido que sai da
     máquina (sugestão de nome do monumento e contorno de cidade, no
     Nominatim; bandeiras de estado, no Wikidata/Commons), dizendo o que sai e
-    para quem. Desligado, o pedido não acontece;
+    para quem. Desligado, o pedido não acontece. Ali fica também a chave da
+    AeroDataBox (rota e horário do voo; recebe o código e a data): sem
+    chave, nada é pedido. A chave é do servidor, não do perfil (vale para
+    todos, em `data/server.json`); nunca volta para o navegador e não vai
+    no export do perfil nem no backup;
   - **Chaves de API**: os tokens de integração deste perfil (criar, revogar);
   - **Backup**: baixar um .zip com todos os perfis do servidor; restaurar;
   - **Atualização**: a versão instalada e, por enquanto, o caminho manual
@@ -246,6 +274,7 @@ scratch-map/
 ├── app.py                    # backend Flask (API + páginas)
 ├── boundaries.py             # contorno das cidades (sob demanda) e nome de monumento
 ├── flags.py                  # bandeiras de estado (Wikidata, em segundo plano)
+├── flights.py                # voos: tabela e consulta de rota/horário (AeroDataBox, opcional)
 ├── geoshapes.py              # recorte pelo litoral e busca da área de cidade (Overture)
 ├── installer.py              # primeira execução: assistente e montagem dos dados do mapa
 ├── profiles.py               # perfis da casa: uma pasta de dados por pessoa
@@ -658,6 +687,7 @@ deve ficar exposta na internet.
 | POST | `/profiles/new` | cria um perfil e abre o assistente para ele |
 | GET | `/api/boards` | quadros: os continentes, com os países de cada um |
 | GET | `/api/boards/<continent\|country\|state>/<id>` | um quadro já desenhado (porções em SVG, nomes, traços, lupas, lista) |
+| GET | `/api/compare/<id>` | compara com outro perfil: cada lugar em `together`, `apart`, `me` ou `them`, com nomes e pontos |
 | GET | `/api/stats` | álbum: países com bandeira (`visited`) e totais por tipo |
 | GET | `/api/stats/country/<id>` | estados do país, com cidades visitadas em cada |
 | GET | `/api/stats/state/<id>` | cidades do estado (visitadas, depois por população) |

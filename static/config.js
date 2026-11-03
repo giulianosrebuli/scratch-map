@@ -114,6 +114,25 @@
     }
   });
 
+  // chave da AeroDataBox: nunca volta do servidor; o campo só diz se há uma salva
+  const flightKey = $('#flight-key'), keyRemove = $('#flight-key-remove');
+  const keySaved = (on) => {
+    flightKey.elements.key.value = '';
+    flightKey.elements.key.placeholder = on ? t('Chave salva') : t('Chave da AeroDataBox (X-RapidAPI-Key)');
+    keyRemove.hidden = !on;
+  };
+  flightKey.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const key = flightKey.elements.key.value.trim();
+    if (!key) return;
+    const p = await save({ aerodatabox_key: key });
+    if (p) { keySaved(p.flight_lookup); toast(t('Chave salva.')); }
+  });
+  keyRemove.addEventListener('click', async () => {
+    const p = await save({ aerodatabox_key: null });
+    if (p) { keySaved(false); toast(t('Chave removida.')); }
+  });
+
   // ------------------------------------------------------------------ backup
   const info = $('#backup-info');
   const mb = (n) => `${(n / 1024 / 1024).toLocaleString(locale, { maximumFractionDigits: n > 1e8 ? 0 : 1 })} MB`;

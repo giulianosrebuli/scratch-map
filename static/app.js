@@ -15,10 +15,11 @@
   const THUMB_Z = 8;       // a partir deste zoom o landmark vira a miniatura da foto
 
   const S = {
-    layers: { country: true, state: true, city: true, airport: true, landmark: true, ...store.get('layers', {}) },
+    layers: { country: true, state: true, city: true, airport: true, route: true, landmark: true, ...store.get('layers', {}) },
     visited: { country: [], state: [], city: [], airport: [], landmark: [] },
+    flights: [],                // /api/flights: as rotas (pontes aéreas) saem daqui
     cityShapes: { type: 'FeatureCollection', features: [] },
-    view: { type: 'none' },     // none (gaveta fechada) | add | add-city | add-airport | add-list | add-photo | place | landmark-form
+    view: { type: 'none' },     // none (gaveta fechada) | add | add-city | add-airport | add-flight | add-list | add-photo | place | route | landmark-form
     history: [],                // pilha de views para o "voltar"
     placing: null,              // formulário do landmark aberto: {marker, move}
     loaded: false,              // primeira carga feita (só depois disso há raspagem)
@@ -115,6 +116,69 @@
     features: S.visited.airport.map((p) => ({ type: 'Feature', properties: { id: String(p.id), name: `${p.id} — ${p.name}` }, geometry: { type: 'Point', coordinates: [p.lon, p.lat] } })),
   });
 
+  // Pontes aéreas: um arco por par de aeroportos (ida e volta juntas); a
+  // espessura cresce com o número de voos. Visto de cima, um arco vertical seria
+  // uma reta: por isso ele é levantado para o lado do "céu" (norte da tela),
+  // mais alto quanto mais longe, com a sombra no chão (a rota de verdade).
+  const routeKey = (f) => [f.origin.id, f.destination.id].sort().join('-');
+  function routes() {
+    const out = new Map();
+    for (const f of S.flights) {
+      const k = routeKey(f);
+      if (!out.has(k)) {
+        const [a, b] = f.origin.id < f.destination.id ? [f.origin, f.destination] : [f.destination, f.origin];
+        out.set(k, { key: k, a, b, flights: [] });
+      }
+      out.get(k).flights.push(f);
+    }
+    return out;
+  }
+  function greatCircle([lon1, lat1], [lon2, lat2], n = 64) {
+    const rad = Math.PI / 180;
+    const vec = (lon, lat) => [Math.cos(lat * rad) * Math.cos(lon * rad), Math.cos(lat * rad) * Math.sin(lon * rad), Math.sin(lat * rad)];
+    const v1 = vec(lon1, lat1), v2 = vec(lon2, lat2);
+    const d = Math.acos(Math.min(1, v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2]));
+    if (d < 1e-6) return [[lon1, lat1], [lon2, lat2]];
+    const pts = [];
+    for (let i = 0; i <= n; i++) {
+      const t = i / n, A = Math.sin((1 - t) * d) / Math.sin(d), B = Math.sin(t * d) / Math.sin(d);
+      const [x, y, z] = [0, 1, 2].map((j) => A * v1[j] + B * v2[j]);
+      let lon = Math.atan2(y, x) / rad;
+      // sem saltar no antimeridiano: a longitude continua além de ±180 (o MapLibre aceita)
+      if (pts.length) lon += Math.round((pts[pts.length - 1][0] - lon) / 360) * 360;
+      pts.push([lon, Math.atan2(z, Math.hypot(x, y)) / rad]);
+    }
+    return pts;
+  }
+  const ARC_LIFT = 0.18;  // altura do arco, em fração da distância
+  function liftedArc(ground) {
+    // em coordenadas de Mercator, onde "para cima" na tela é o norte
+    const toM = ([lon, lat]) => [lon / 360, Math.log(Math.tan(Math.PI / 4 + Math.max(-85, Math.min(85, lat)) * Math.PI / 360)) / (2 * Math.PI)];
+    const fromM = ([x, y]) => [x * 360, (2 * Math.atan(Math.exp(y * 2 * Math.PI)) - Math.PI / 2) * 180 / Math.PI];
+    const m = ground.map(toM), [a, b] = [m[0], m[m.length - 1]];
+    const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (!L) return ground;
+    let n = [-(b[1] - a[1]) / L, (b[0] - a[0]) / L];   // perpendicular à corda
+    if (n[1] < 0 || (n[1] === 0 && n[0] < 0)) n = [-n[0], -n[1]];  // sempre para o norte (ou leste)
+    return m.map(([x, y], i) => {
+      const h = ARC_LIFT * L * Math.sin(Math.PI * i / (m.length - 1));
+      return fromM([x + n[0] * h, y + n[1] * h]);
+    });
+  }
+  const flightsLabel = (n) => t(n === 1 ? '{n} voo' : '{n} voos', { n });
+  // cada rota vira duas linhas: a sombra (shadow: 1, no chão) e o arco
+  const routesFC = () => ({
+    type: 'FeatureCollection',
+    features: [...routes().values()].flatMap((r) => {
+      const ground = greatCircle([r.a.lon, r.a.lat], [r.b.lon, r.b.lat]);
+      const properties = { id: r.key, count: r.flights.length, name: `${r.a.id} ⇄ ${r.b.id} · ${flightsLabel(r.flights.length)}` };
+      return [
+        { type: 'Feature', properties: { ...properties, shadow: 1 }, geometry: { type: 'LineString', coordinates: ground } },
+        { type: 'Feature', properties: { ...properties, shadow: 0 }, geometry: { type: 'LineString', coordinates: liftedArc(ground) } },
+      ];
+    }),
+  });
+
   function icon(path, color) {
     const s = 26, k = 2, c = document.createElement('canvas');
     c.width = c.height = s * k;
@@ -141,6 +205,7 @@
     map.addSource('cities', { type: 'geojson', data: emptyFC });
     map.addSource('city-shapes', { type: 'geojson', data: emptyFC });
     map.addSource('airports', { type: 'geojson', data: emptyFC });
+    map.addSource('routes', { type: 'geojson', data: emptyFC });
     map.addSource('landmarks', { type: 'geojson', data: emptyFC });
 
     const none = ['in', FID, ['literal', []]];
@@ -157,6 +222,18 @@
     map.addLayer({ id: 'city-outline', type: 'line', source: 'city-shapes', paint: { 'line-color': C.border, 'line-width': 1 } });
     map.addLayer({ id: 'country-hl', type: 'line', ...ADMIN('countries'), filter: none, paint: { 'line-color': '#2b2a27', 'line-width': 2 } });
     map.addLayer({ id: 'state-hl', type: 'line', ...ADMIN('states'), filter: none, paint: { 'line-color': '#2b2a27', 'line-width': 2 } });
+    const routeW = (k) => ['*', k, ['min', ['+', 1, ['*', 0.5, ['get', 'count']]], 4]];
+    map.addLayer({
+      id: 'routes-shadow', type: 'line', source: 'routes', filter: ['==', ['get', 'shadow'], 1],
+      layout: { 'line-cap': 'round' },
+      // fina e fraca, igual para todas (a espessura pelo número de voos é só do arco)
+      paint: { 'line-color': '#000', 'line-opacity': 0.12, 'line-width': ['interpolate', ['linear'], ['zoom'], 2, 0.5, 8, 1] },
+    });
+    map.addLayer({
+      id: 'routes', type: 'line', source: 'routes', filter: ['==', ['get', 'shadow'], 0],
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': C.airport, 'line-opacity': 0.85, 'line-width': ['interpolate', ['linear'], ['zoom'], 2, routeW(1), 8, routeW(1.8)] },
+    });
     map.addLayer({
       id: 'cities', type: 'circle', source: 'cities',
       paint: {
@@ -185,6 +262,8 @@
     airport: ['airports'],
     landmark: ['landmarks'],
   };
+  // pontes aéreas: só com os aeroportos ligados também
+  const showRoutes = () => S.layers.route && S.layers.airport;
 
   function applyLayers() {
     $('#map').classList.toggle('lm-off', !S.layers.landmark);
@@ -194,6 +273,7 @@
       for (const id of KIND_LAYERS[k]) map.setLayoutProperty(id, 'visibility', S.layers[k] && border[id] !== false ? 'visible' : 'none');
     }
     map.setLayoutProperty('country-lines', 'visibility', BORDERS.borders_country ? 'visible' : 'none');
+    for (const id of ['routes-shadow', 'routes']) map.setLayoutProperty(id, 'visibility', showRoutes() ? 'visible' : 'none');
   }
 
   // Miniaturas "impressas" dos landmarks (marcadores HTML, aparecem a partir de THUMB_Z).
@@ -230,6 +310,7 @@
     map.getSource('cities').setData(cityPointsFC());
     map.getSource('city-shapes').setData(S.cityShapes);
     map.getSource('airports').setData(airportsFC());
+    map.getSource('routes').setData(routesFC());
     map.getSource('landmarks').setData(landmarksFC());
     syncThumbs();
     syncThumbZoom();
@@ -316,7 +397,7 @@
   // Clique/hover: pega o mais específico entre as camadas ligadas. Se nada
   // visitado está embaixo, cai no estado (se ligado) ou no país.
   const PICK_ORDER = [
-    ['landmarks', 'landmark'], ['cities', 'city'], ['airports', 'airport'], ['city-fill', 'city'],
+    ['landmarks', 'landmark'], ['cities', 'city'], ['airports', 'airport'], ['routes', 'route'], ['city-fill', 'city'],
     ['state-visited', 'state'], ['state-hit', 'state'],
     ['country-visited', 'country'], ['land', 'country'],
   ];
@@ -326,12 +407,12 @@
     const z = map.getZoom();
     for (const [layer, kind] of PICK_ORDER) {
       if (!map.getLayer(layer)) continue;
-      if (layer !== 'land' && !S.layers[kind]) continue;
+      if (layer !== 'land' && !(kind === 'route' ? showRoutes() : S.layers[kind])) continue;
       if (layer === 'landmarks' && z >= THUMB_Z - 0.2) continue;  // de perto quem responde é a miniatura
       // estado não visitado só responde quando a divisa dele aparece (bordas de
       // estado ligadas e perto o bastante); senão, quem responde é o país
       if (layer === 'state-hit' && (!BORDERS.borders_state || z < 2.5)) continue;
-      const q = layer === 'cities' || layer === 'airports' || layer === 'landmarks' ? box : point;
+      const q = layer === 'cities' || layer === 'airports' || layer === 'landmarks' || layer === 'routes' ? box : point;
       const f = map.queryRenderedFeatures(q, { layers: [layer] })[0];
       if (!f) continue;
       if (kind !== 'state' && kind !== 'country') return { kind, id: f.properties.id, name: f.properties.name };
@@ -360,7 +441,8 @@
     if (S.placing) return S.placing.move(e.lngLat);  // formulário do landmark: toque posiciona
     const hit = pick(e.point);
     // não move o mapa: quem clicou já está olhando para o lugar
-    if (hit) openPlace(hit.kind, hit.id, { point: e.lngLat, fly: false });
+    if (hit?.kind === 'route') { go({ type: 'route', key: hit.id }); highlight(null); }
+    else if (hit) openPlace(hit.kind, hit.id, { point: e.lngLat, fly: false });
   });
 
 
@@ -682,11 +764,13 @@
   // batch: muitas de uma vez (lista de cidades): uma cena só, com tudo junto
   async function loadVisited({ batch = false } = {}) {
     const prev = S.loaded ? S.visited : null;
-    const visited = await api('/api/visited');
+    const [visited, flights] = await Promise.all([api('/api/visited'), api('/api/flights')]);
+    S.flights = flights;
     const shapes = await loadCityShapes(visited.city.map((c) => String(c.id)));
     const fresh = prev && map.getLayer('land') && !reducedMotion() ? newlyVisited(prev, visited) : [];
     S.loaded = true;
     for (const k of KINDS) document.querySelector(`[data-count="${k}"]`).textContent = visited[k].length;
+    document.querySelector('[data-count="route"]').textContent = routes().size;
     if (fresh.length) return playScene(fresh, visited, shapes, { batch });
     [S.visited, S.cityShapes] = [visited, shapes];
     paintVisited();
@@ -800,6 +884,8 @@
     else if (v.type === 'place') renderPlace(v.data, v.point);
     else if (v.type === 'add') renderAdd();
     else if (v.type === 'add-list') renderCityList();
+    else if (v.type === 'add-flight') renderFlightForm(v);
+    else if (v.type === 'route') renderRoute(v);
     else renderSearch(v);
     // abrindo do zero: tamanho certo antes de subir; já aberta: anima a troca
     setSize(v.size || 'peek', { instant: !sheet.classList.contains('open') });
@@ -822,6 +908,7 @@
 
   // ------------------------------------------------------------------ adicionar
   const LIST_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 6 1.5 1.5L8 4.5M3.5 12.5 5 14l3-3M3.5 19 5 20.5l3-3M11 6h10M11 12.5h10M11 19h10"/></svg>';
+  const PLANE_SVG = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="${PLANE}"/></svg>`;
   const CAMERA_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 7.5h3.2L9 5h6l1.8 2.5H20a1 1 0 0 1 1 1V19a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8.5a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.6"/></svg>';
 
   function renderAdd() {
@@ -832,6 +919,7 @@
       ${opt('city', '<i class="dot city"></i>', t('Cidade'), t('Busque e finque a bandeira. Marca o estado e o país junto.'))}
       ${opt('list', LIST_SVG, t('Lista de cidades'), t('Várias de uma vez: escolha o país e toque nas que você conhece.'))}
       ${opt('airport', '<i class="dot airport"></i>', t('Aeroporto'), t('Busque pelo nome, pela cidade ou pelo código (GRU) e finque a bandeira.'))}
+      ${opt('flight', PLANE_SVG, t('Voo'), t('Código e data do voo. Marca os aeroportos de origem e de destino.'))}
       ${opt('landmark', '<i class="dot landmark"></i>', t('Monumento'), t('A partir de uma foto; a posição vem do GPS dela.'))}
       ${opt('photo', CAMERA_SVG, t('Foto'), t('Escolha o lugar e depois as fotos.'))}
     </ul>`);
@@ -840,6 +928,7 @@
     $('[data-add="city"]', ul).addEventListener('click', () => go({ type: 'add-city', q: '' }));
     $('[data-add="list"]', ul).addEventListener('click', () => go({ type: 'add-list' }));
     $('[data-add="airport"]', ul).addEventListener('click', () => go({ type: 'add-airport', q: '' }));
+    $('[data-add="flight"]', ul).addEventListener('click', () => go({ type: 'add-flight' }));
     $('[data-add="photo"]', ul).addEventListener('click', () => go({ type: 'add-photo', q: '' }));
     const lmBtn = $('[data-add="landmark"]', ul);
     lmBtn.addEventListener('click', () => lmFile.click());
@@ -865,6 +954,156 @@
         if (n) toast(t(n === 1 ? '{n} cidade marcada. Os contornos que faltam aparecem aos poucos.' : '{n} cidades marcadas. Os contornos que faltam aparecem aos poucos.', { n }));
       },
     });
+  }
+
+  // Voo: código e data; origem e destino escolhidos na busca de aeroportos.
+  // Com a chave da AeroDataBox (Configurações → Dados e privacidade), "Buscar"
+  // preenche a rota e os horários. Salvar marca os dois aeroportos.
+  function renderFlightForm(v) {
+    body.append(sheetHead(`<div class="kind-label">${PLANE_SVG}${t('Novo voo')}</div>`));
+    const form = el(`<form class="lm-form flight-form">
+      <div class="row">
+        <label>${t('Código do voo')}<input name="code" required maxlength="10" placeholder="LA3456" autocomplete="off" autocapitalize="characters"></label>
+        <label>${t('Data')}<input name="date" type="date" required></label>
+      </div>
+      ${window.PREFS?.flight_lookup
+        ? `<button class="btn secondary small" type="button" data-act="lookup">${t('Buscar rota e horário')}</button>`
+        : `<p class="hint">${t('O código do voo não diz a rota: escolha os aeroportos abaixo. Para preencher pelo código, cadastre uma chave da AeroDataBox em')} <a href="/settings#privacy">${t('Configurações')}</a>.</p>`}
+      <p class="hint found" hidden></p>
+      <div class="legs" hidden></div>
+      <div class="airport-field" data-end="origin"><span>${t('Origem')}</span></div>
+      <div class="airport-field" data-end="destination"><span>${t('Destino')}</span></div>
+      <div class="row">
+        <label>${t('Partida')}<input name="departs" type="time"></label>
+        <label>${t('Chegada')}<input name="arrives" type="time"></label>
+      </div>
+      <p class="hint">${t('Horários na hora local de cada aeroporto (opcionais).')}</p>
+      <div class="actions">
+        <button class="btn" type="submit">${t('Salvar')}</button>
+        <button class="btn secondary" type="button" data-act="cancel">${t('Cancelar')}</button>
+      </div>
+    </form>`);
+    body.append(form);
+    const f = form.elements, save = $('[type=submit]', form), found = $('.found', form);
+    for (const k of ['code', 'date', 'departs', 'arrives']) {
+      f[k].value = v[k] || '';
+      f[k].addEventListener('input', () => { v[k] = f[k].value; check(); });
+    }
+    const check = () => {
+      save.disabled = !(f.code.value.trim() && f.date.value && v.origin && v.destination && v.origin.id !== v.destination.id);
+    };
+    const ends = {};
+    for (const box of form.querySelectorAll('.airport-field')) ends[box.dataset.end] = airportField(box, v, check);
+    check();
+    $('[data-act="cancel"]', form).addEventListener('click', back);
+
+    const fill = (leg) => {
+      ends.origin.set({ id: leg.origin, name: `${leg.origin} — ${leg.origin_name}` });
+      ends.destination.set({ id: leg.destination, name: `${leg.destination} — ${leg.destination_name}` });
+      for (const k of ['departs', 'arrives']) { f[k].value = leg[k] || ''; v[k] = f[k].value; }
+      check();
+    };
+    $('[data-act="lookup"]', form)?.addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      if (!f.code.value.trim() || !f.date.value) { found.textContent = t('Preencha o código e a data.'); found.hidden = false; return; }
+      btn.disabled = true;
+      found.hidden = false;
+      found.textContent = t('Buscando…');
+      const legsBox = $('.legs', form);
+      legsBox.hidden = true;
+      try {
+        const r = await api(`/api/flights/lookup?code=${encodeURIComponent(f.code.value)}&date=${f.date.value}`);
+        if (r.error) found.textContent = r.error;
+        else if (!r.legs.length) found.textContent = t('Voo não encontrado nessa data. Escolha os aeroportos abaixo.');
+        else if (r.legs.length === 1) { fill(r.legs[0]); found.textContent = t('Rota e horário preenchidos.'); }
+        else {
+          // mesmo número com mais de uma perna no dia (ex.: GRU → BSB → MAO)
+          found.textContent = t('Esse voo tem {n} trechos nesse dia. Qual foi o seu?', { n: r.legs.length });
+          legsBox.innerHTML = '';
+          for (const leg of r.legs) {
+            const b = el(`<button type="button" class="chip add">${esc(leg.origin)} → ${esc(leg.destination)}${leg.departs ? ` <small>${esc(leg.departs)}</small>` : ''}</button>`);
+            b.addEventListener('click', () => { fill(leg); legsBox.hidden = true; found.textContent = t('Rota e horário preenchidos.'); });
+            legsBox.append(b);
+          }
+          legsBox.hidden = false;
+        }
+      } catch (err) {
+        found.textContent = t('Não deu: {erro}', { erro: err.message });
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      save.disabled = true;
+      try {
+        const fl = await api('/api/flights', json('POST', {
+          code: f.code.value, date: f.date.value, origin: v.origin.id, destination: v.destination.id,
+          departs: f.departs.value || null, arrives: f.arrives.value || null,
+        }));
+        S.history = [];
+        closeSheet();
+        toast(t('Voo {code} salvo. {o} e {d} marcados.', { code: fl.code, o: fl.origin.id, d: fl.destination.id }));
+        await loadVisited();
+      } catch (err) {
+        alert(t('Não deu para salvar: {erro}', { erro: err.message }));
+        check();
+      }
+    });
+    setTimeout(() => f.code.focus(), 60);
+  }
+
+  // Ponte aérea (toque na linha): os voos daquele par, do mais recente ao mais antigo.
+  function renderRoute(v) {
+    const r = routes().get(v.key);
+    if (!r) return closeSheet();
+    body.append(sheetHead(`<div class="kind-label">${PLANE_SVG}${t('Ponte aérea')} · ${flightsLabel(r.flights.length)}</div>
+      <h2>${esc(r.a.id)} ⇄ ${esc(r.b.id)}</h2>
+      <div class="crumbs">${[r.a, r.b].map((ap) => `<a data-id="${esc(ap.id)}">${esc(ap.city || ap.name)}</a>`).join(' · ')}</div>`));
+    body.querySelectorAll('.crumbs a').forEach((a) => a.addEventListener('click', () => openPlace('airport', a.dataset.id)));
+    const ul = el('<ul class="list flight-list"></ul>');
+    for (const f of r.flights) {
+      const hours = f.departs || f.arrives ? ` · ${f.departs || '?'} → ${f.arrives || '?'}` : '';
+      ul.append(el(`<li><span class="code">${esc(f.code)}</span>
+        <div class="name"><span class="route">${esc(f.origin.id)} → ${esc(f.destination.id)}</span><small>${fmtDate(f.date)}${hours}</small></div></li>`));
+    }
+    body.append(ul);
+  }
+
+  // Campo de aeroporto do voo: escolhido, mostra "GRU — nome"; digitar busca de novo.
+  function airportField(box, v, onChange) {
+    const end = box.dataset.end;
+    box.append(el(`<div class="search"><input type="search" autocomplete="off" placeholder="${t('Nome, cidade ou código (GRU)…')}"></div>`));
+    const input = $('input', box), out = el('<ul class="list picks"></ul>');
+    box.append(out);
+    const set = (ap) => {
+      v[end] = ap;
+      input.value = ap ? ap.name : '';
+      input.classList.toggle('picked', !!ap);
+      out.innerHTML = '';
+      onChange();
+    };
+    let timer, seq = 0;
+    input.addEventListener('input', () => {
+      if (v[end]) { v[end] = null; input.classList.remove('picked'); onChange(); }
+      clearTimeout(timer);
+      timer = setTimeout(async () => {
+        const q = input.value.trim(), n = ++seq;
+        if (q.length < 2) { out.innerHTML = ''; return; }
+        const items = await api(`/api/search?kind=airport&q=${encodeURIComponent(q)}`);
+        if (n !== seq || !out.isConnected) return;
+        out.innerHTML = '';
+        for (const it of items.slice(0, 6)) {
+          const li = el(`<li><i class="dot airport"></i><div class="name">${esc(it.name)}<small>${esc(it.sub || '')}</small></div></li>`);
+          li.addEventListener('click', () => set({ id: it.id, name: it.name }));
+          out.append(li);
+        }
+        if (!items.length) out.append(el(`<li class="empty">${t('Nada encontrado.')}</li>`));
+      }, 200);
+    });
+    if (v[end]) set(v[end]);
+    return { set };
   }
 
   // Busca dentro do "adicionar": cidade (com a bandeira para marcar) ou o lugar
@@ -1400,6 +1639,9 @@
   document.querySelectorAll('#toggles button').forEach((b) => b.addEventListener('click', () => {
     const k = b.dataset.kind;
     S.layers[k] = !S.layers[k];
+    // rotas dependem dos aeroportos: desligar os aeroportos desliga as rotas; ligar as rotas liga os aeroportos
+    if (k === 'airport' && !S.layers.airport) S.layers.route = false;
+    if (k === 'route' && S.layers.route) S.layers.airport = true;
     store.set('layers', S.layers);
     syncToggles();
     applyLayers();

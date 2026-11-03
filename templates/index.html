@@ -12,6 +12,8 @@
       <button data-kind="state" aria-pressed="true"><i class="dot state"></i><span>{{ _('Estados') }}</span> <b data-count="state">0</b></button>
       <button data-kind="city" aria-pressed="true"><i class="dot city"></i><span>{{ _('Cidades') }}</span> <b data-count="city">0</b></button>
       <button data-kind="airport" aria-pressed="true"><i class="dot airport"></i><span data-short="{{ _('Aerop.') }}">{{ _('Aeroportos') }}</span> <b data-count="airport">0</b></button>
+      {# pontes aéreas: só aparecem com os aeroportos ligados (static/app.js) #}
+      <button data-kind="route" aria-pressed="true"><i class="dot route"></i><span>{{ _('Rotas') }}</span> <b data-count="route">0</b></button>
       <button data-kind="landmark" aria-pressed="true"><i class="dot landmark"></i><span>{{ _('Monumentos') }}</span> <b data-count="landmark">0</b></button>
     </nav>
   </header>

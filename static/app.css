@@ -94,12 +94,17 @@ button { font: inherit; color: inherit; cursor: pointer; }
   background: var(--airport); border-radius: 0; width: 13px; height: 13px;
   -webkit-mask: var(--plane) center / contain no-repeat; mask: var(--plane) center / contain no-repeat;
 }
+.dot.route {
+  background: var(--airport); border-radius: 0; width: 13px; height: 13px;
+  -webkit-mask: var(--arc) center / contain no-repeat; mask: var(--arc) center / contain no-repeat;
+}
 .dot.landmark {
   background: var(--landmark); border-radius: 0; width: 13px; height: 13px;
   -webkit-mask: var(--pin) center / contain no-repeat; mask: var(--pin) center / contain no-repeat;
 }
 :root {
   --pin: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill-rule='evenodd' d='M12 1.5a8 8 0 0 0-8 8c0 5.6 6.4 11.6 7.4 12.5a.9.9 0 0 0 1.2 0c1-.9 7.4-6.9 7.4-12.5a8 8 0 0 0-8-8zm0 5a3 3 0 1 1 0 6 3 3 0 0 1 0-6z'/></svg>");
+  --arc: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round'><path d='M3 19C6 5 18 5 21 19'/></svg>");
   --plane: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z'/></svg>");
 }
 
@@ -225,19 +230,19 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
   .toggles { order: 3; flex-basis: 100%; gap: 4px; }
   .toggles button { padding: 4px 7px; gap: 4px; font-size: 13px; flex: 1; justify-content: center; }
   .toggles .dot { width: 8px; height: 8px; }
-  .toggles .dot.airport, .toggles .dot.landmark { width: 11px; height: 11px; }
+  .toggles .dot.airport, .toggles .dot.landmark, .toggles .dot.route { width: 11px; height: 11px; }
   .nav-arrow { display: none; }
 }
 
 [hidden] { display: none !important; }
 .group-title { display: flex; align-items: center; gap: 6px; }
 .nearby { display: flex; flex-direction: column; gap: 4px; }
-/* telas estreitas: os 5 toggles ficam só com ícone + contagem */
+/* telas estreitas: os 6 toggles ficam só com ícone + contagem */
 @media (max-width: 560px) {
   .toggles button span { display: none; }
   .toggles button { gap: 5px; }
   .toggles .dot { width: 10px; height: 10px; }
-  .toggles .dot.airport, .toggles .dot.landmark { width: 14px; height: 14px; }
+  .toggles .dot.airport, .toggles .dot.landmark, .toggles .dot.route { width: 14px; height: 14px; }
 }
 
 /* ---------- landmarks ---------- */
@@ -1023,3 +1028,51 @@ body.no-intro #setup-map, body.no-intro .setup, body.no-intro .setup-card { tran
 .update-howto { display: flex; flex-direction: column; gap: 4px; }
 .update-howto code { font-size: 13px; padding: 6px 10px; border-radius: 8px; background: var(--bg); overflow-x: auto; white-space: nowrap; }
 .update-howto b { font-size: 13.5px; margin-top: 4px; }
+
+/* Perfil → Comparar com (static/compare.js) */
+.compare-pick { display: flex; flex-wrap: wrap; gap: 8px; }
+.person-chip {
+  display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px 5px 5px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; font-weight: 500; cursor: pointer;
+}
+.person-chip[aria-pressed="true"] { border-color: var(--ink); background: var(--card); font-weight: 650; }
+.person-chip .avatar { width: 30px; height: 30px; border-radius: 50%; overflow: hidden; display: grid; place-items: center; background: var(--line); }
+.person-chip .avatar img { width: 100%; height: 100%; object-fit: cover; }
+.person-chip .avatar svg { width: 18px; height: 18px; fill: none; stroke: var(--muted); stroke-width: 2; }
+.compare-result { display: flex; flex-direction: column; gap: 12px; }
+.compare-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13.5px; }
+.compare-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { display: inline-block; width: 14px; height: 14px; border-radius: 3px; vertical-align: -2px; }
+.sw.together { background: #7c3aed; }
+.sw.apart { background: repeating-linear-gradient(135deg, #7c3aed 0 2.5px, rgba(167, 139, 218, .45) 2.5px 6px); }
+.sw.me { background: #2563eb; }
+.sw.them { background: #ea7a1e; }
+.compare-map { height: 300px; border-radius: 12px; overflow: hidden; background: var(--water); }
+.compare-table { border-collapse: collapse; font-size: 14px; }
+.compare-table th, .compare-table td { padding: 5px 12px 5px 0; text-align: left; }
+.compare-table td + td, .compare-table th + th { text-align: center; min-width: 44px; }
+.compare-table tbody tr + tr td { border-top: 1px solid var(--line); }
+.compare-list .group-title { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; }
+.compare-list .chip { text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+
+/* Voo: formulário na gaveta (static/app.js) e lista no Perfil (static/profile.js) */
+.flight-form .row { display: flex; gap: 10px; }
+.flight-form .row label { flex: 1; min-width: 0; }
+.flight-form input[name], .airport-field input {
+  width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--card); font: inherit; color: var(--ink);
+}
+.flight-form input[name="code"] { text-transform: uppercase; }
+.airport-field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+.airport-field input.picked { border-color: var(--airport); color: var(--ink); font-weight: 600; }
+.airport-field .picks { font-size: 14.5px; color: var(--ink); }
+.airport-field .picks .empty { cursor: default; color: var(--muted); }
+.flight-form .legs { display: flex; flex-wrap: wrap; gap: 6px; }
+.flight-form .legs[hidden] { display: none; }
+.kind-label svg { width: 14px; height: 14px; color: var(--airport); }
+.add-list .ico svg[fill="currentColor"] { color: var(--airport); }
+.flight-list li { cursor: default; }
+.flight-list .code { font-weight: 700; letter-spacing: .03em; font-size: 13.5px; min-width: 64px; }
+.flight-list .route { font-weight: 600; }
+.flight-list .del { border: none; background: none; color: var(--muted); font-size: 20px; line-height: 1; padding: 4px 6px; cursor: pointer; }
+.flight-list .del:hover { color: #c0392b; }

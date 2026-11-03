@@ -1,5 +1,5 @@
 """Gera static/textures/foil.png: papel metálico amassado, para a película dos
-quadros (/quadros). Ladrilho sem emenda (tudo periódico: ruído por FFT e
+quadros (/boards). Ladrilho sem emenda (tudo periódico: ruído por FFT e
 derivadas com np.roll), em tons de cinza; o quadro aplica por cima do dourado
 com mix-blend-mode: overlay (cinza médio = neutro).
 
@@ -66,7 +66,7 @@ def main():
         shade += weight * ((layer - layer.mean()) / layer.std() + 0.9 * edge)
     shade += 0.6 * periodic_noise(rng, n, 2.6) * 3  # ondulação suave dentro das facetas
 
-    # grão fino, um pouco mais marcado (como pediu: mais granular)
+    # grão fino, um pouco marcado (papel granulado)
     grain = rng.normal(size=(n, n))
     z = (shade - shade.mean()) / shade.std()
     img = 0.5 + 0.12 * np.tanh(z * 0.9) + 0.05 * grain  # tanh: sem manchas escuras grandes
