@@ -32,5 +32,8 @@ COPY --chown=scratch:scratch . .
 ENV SCRATCH_DATA=/data SCRATCH_GEODATA=/geodata PYTHONUNBUFFERED=1
 VOLUME ["/data", "/geodata"]
 EXPOSE 5020
+# "/" responde 200 (ou leva ao /setup, que também responde) quando o gunicorn está de pé
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5020/', timeout=8)"]
 ENTRYPOINT ["tini", "--"]
 CMD ["gunicorn", "--bind", "0.0.0.0:5020", "--workers", "1", "--threads", "4", "--timeout", "180", "app:app"]

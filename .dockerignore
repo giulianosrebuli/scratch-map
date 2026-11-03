@@ -10,3 +10,7 @@ docker-compose.yml
 .dockerignore
 .git/
 LOCAL.md
+melhorias.md
+.env
+.env.example
+teste/

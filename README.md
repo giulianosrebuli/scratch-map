@@ -494,7 +494,12 @@ sobre um mapa-múndi leve girando ao fundo (Natural Earth, domínio público,
    mapa preenchido. O mapa abre raspando o que foi marcado.
 
 Volumes: `/data` (seus dados; faça backup) e `/geodata` (dados do mapa,
-remontáveis). Enquanto o assistente não termina, toda página leva a `/setup`.
+remontáveis). Num servidor, um `.env` ao lado do compose (modelo em
+`.env.example`) troca os volumes por pastas do host (`SCRATCH_DATA_DIR`,
+`SCRATCH_GEODATA_DIR`, que precisam ser do UID 1000, o usuário do container),
+o endereço publicado (`SCRATCH_PORT`, só a porta ou `IP:porta`) e o teto de RAM
+(`SCRATCH_MEM_LIMIT`, padrão 768m). A imagem tem healthcheck
+(`docker compose ps` mostra `healthy`). Enquanto o assistente não termina, toda página leva a `/setup`.
 O que ele decidiu fica em `data/setup.json`, fora do banco: restaurar um backup
 depois não reabre o assistente. Uma instalação de antes do assistente (com os
 dados do mapa prontos) é adotada como instalada na subida.
@@ -578,7 +583,23 @@ systemctl --user daemon-reload && systemctl --user restart scratch-map
 systemctl --user enable --now scratch-map-tls scratch-map-cert.timer
 ```
 
-O certificado dura 90 dias; o timer `scratch-map-cert` roda o
+**Com Docker**, o mais simples é deixar o HTTPS com o próprio Tailscale da
+máquina, sem tlsmux nem timer de certificado (o `tailscale serve` emite e
+renova sozinho). Publique a porta só no IP da rede local, para a mesma porta
+ficar livre no IP da tailnet:
+
+```bash
+# .env: SCRATCH_PORT=<IP da rede local>:5020
+docker compose up -d
+tailscale serve --bg --https=5020 http://<IP da rede local>:5020
+```
+
+Fica `https://<máquina>.<tailnet>.ts.net:5020` pela tailnet e
+`http://<IP da rede local>:5020` na rede local (o HTTP pelo IP da tailnet deixa
+de existir). Não rode `tailscale serve reset` nem `tailscale funnel reset`
+nessa máquina: apagam essa configuração.
+
+No systemd, com o tlsmux: o certificado dura 90 dias; o timer `scratch-map-cert` roda o
 `renew-cert.sh` todo dia, e o tlsmux relê o certificado quando ele muda
 (`systemctl --user reload scratch-map-tls`, sem derrubar conexões). Precisa do
 MagicDNS e dos certificados HTTPS ligados no painel do Tailscale, e do seu

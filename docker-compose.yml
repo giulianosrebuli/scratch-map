@@ -1,15 +1,25 @@
 # Scratch Map: http://<máquina>:5020 (a primeira visita abre o assistente).
 # Sem login, de propósito: não exponha a porta para a internet (LAN ou VPN).
+#
+# Tudo tem padrão; para um servidor, ajuste num .env ao lado (veja .env.example):
+# pastas do host no lugar dos volumes, endereço da porta e teto de RAM.
 services:
   scratch-map:
     build: .
     image: scratch-map
     ports:
-      - "5020:5020"
+      - "${SCRATCH_PORT:-5020}:5020"
     volumes:
-      - data:/data          # seus dados: faça backup (Configurações → Backup)
-      - geodata:/geodata    # dados do mapa (remontáveis)
+      - ${SCRATCH_DATA_DIR:-data}:/data          # seus dados: faça backup (Configurações → Backup)
+      - ${SCRATCH_GEODATA_DIR:-geodata}:/geodata # dados do mapa (remontáveis)
     restart: unless-stopped
+    mem_limit: ${SCRATCH_MEM_LIMIT:-768m}
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
 
 volumes:
   data:
